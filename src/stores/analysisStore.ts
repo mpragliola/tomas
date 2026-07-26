@@ -13,6 +13,7 @@ import { AudioRecorder } from '../services/audio/recorder';
 
 export const useAnalysisStore = defineStore('analysis', () => {
   const audioBuffers = ref({ A: new Float32Array(), B: new Float32Array() });
+  const sampleRates = ref({ A: 44100, B: 44100 });
   const audioHeaders = ref({
     A: null as any,
     B: null as any,
@@ -35,6 +36,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     const parsed: AudioBuffer = await parseWavFile(file);
     audioBuffers.value[slot] = parsed.audioData;
     audioHeaders.value[slot] = parsed.header;
+    sampleRates.value[slot] = parsed.header.sampleRate;
 
     // Reset selection to full range
     selections.value[slot] = {
@@ -57,14 +59,16 @@ export const useAnalysisStore = defineStore('analysis', () => {
   async function stopRecording(): Promise<void> {
     logger.info('analysisStore', 'Stopping recording');
     const audioData = await recorder.stop();
+    const sr = 44100; // Recorder uses 44100 Hz
 
     audioBuffers.value.A = audioData;
     audioHeaders.value.A = {
-      sampleRate: 44100,
+      sampleRate: sr,
       channels: 1,
       bitDepth: 32,
-      duration: audioData.length / 44100,
+      duration: audioData.length / sr,
     };
+    sampleRates.value.A = sr;
 
     selections.value.A = {
       startSample: 0,
@@ -74,6 +78,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
 
     logger.info('analysisStore', 'Recording saved', {
       samples: audioData.length,
+      sampleRate: sr,
     });
   }
 
@@ -106,8 +111,8 @@ export const useAnalysisStore = defineStore('analysis', () => {
       selections.value.B.endSample,
     );
 
-    const fftResultA = computeFFT(signalA, config);
-    const fftResultB = computeFFT(signalB, config);
+    const fftResultA = computeFFT(signalA, config, sampleRates.value.A);
+    const fftResultB = computeFFT(signalB, config, sampleRates.value.B);
 
     spectra.value.A = extractSpectrum(fftResultA);
     spectra.value.B = extractSpectrum(fftResultB);
@@ -115,6 +120,8 @@ export const useAnalysisStore = defineStore('analysis', () => {
     logger.info('analysisStore', 'Spectra computed', {
       binsA: spectra.value.A.frequencies.length,
       binsB: spectra.value.B.frequencies.length,
+      sampleRateA: sampleRates.value.A,
+      sampleRateB: sampleRates.value.B,
     });
   }
 
@@ -195,6 +202,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
   return {
     audioBuffers,
     audioHeaders,
+    sampleRates,
     selections,
     spectra,
     ir,

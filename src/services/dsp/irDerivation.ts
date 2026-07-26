@@ -77,7 +77,7 @@ export function deriveIR(
   return {
     coefficients: irLimited,
     length: irLimited.length,
-    sampleRate: 44100, // Default, should be passed from audio context
+    sampleRate: 44100, // IR sample rate is always 44100 (could be made configurable)
   };
 }
 

@@ -65,14 +65,81 @@ const zoomLevel = ref(100);
 let wavesurferA: any = null;
 let wavesurferB: any = null;
 
-onMounted(async () => {
+onMounted(() => {
   logger.info('WaveformViewer', 'Mounted');
+  // Initialize waveforms when store updates
+  watch(() => store.audioBuffers.A.length, () => initWaveformA(), { immediate: true });
+  watch(() => store.audioBuffers.B.length, () => initWaveformB(), { immediate: true });
 });
 
 onUnmounted(() => {
   if (wavesurferA) wavesurferA.destroy();
   if (wavesurferB) wavesurferB.destroy();
 });
+
+async function initWaveformA(): Promise<void> {
+  if (!containerA.value || store.audioBuffers.A.length === 0) return;
+
+  try {
+    const WaveSurfer = (await import('wavesurfer.js')).default;
+
+    if (wavesurferA) wavesurferA.destroy();
+
+    wavesurferA = WaveSurfer.create({
+      container: containerA.value,
+      waveColor: '#2C2C2C',
+      progressColor: '#2563EB',
+      cursorColor: '#2563EB',
+      height: 80,
+      normalize: true,
+    });
+
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const audioBuffer = audioContext.createBuffer(
+      1,
+      store.audioBuffers.A.length,
+      44100
+    );
+    audioBuffer.getChannelData(0).set(store.audioBuffers.A);
+
+    wavesurferA.loadDecodedBuffer(audioBuffer);
+    logger.info('WaveformViewer', 'Waveform A initialized');
+  } catch (error) {
+    logger.error('WaveformViewer', 'Failed to init waveform A', { error: String(error) });
+  }
+}
+
+async function initWaveformB(): Promise<void> {
+  if (!containerB.value || store.audioBuffers.B.length === 0) return;
+
+  try {
+    const WaveSurfer = (await import('wavesurfer.js')).default;
+
+    if (wavesurferB) wavesurferB.destroy();
+
+    wavesurferB = WaveSurfer.create({
+      container: containerB.value,
+      waveColor: '#2C2C2C',
+      progressColor: '#FF9500',
+      cursorColor: '#FF9500',
+      height: 80,
+      normalize: true,
+    });
+
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const audioBuffer = audioContext.createBuffer(
+      1,
+      store.audioBuffers.B.length,
+      44100
+    );
+    audioBuffer.getChannelData(0).set(store.audioBuffers.B);
+
+    wavesurferB.loadDecodedBuffer(audioBuffer);
+    logger.info('WaveformViewer', 'Waveform B initialized');
+  } catch (error) {
+    logger.error('WaveformViewer', 'Failed to init waveform B', { error: String(error) });
+  }
+}
 
 function resetZoomA(): void {
   zoomLevel.value = 100;

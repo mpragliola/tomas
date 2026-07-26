@@ -3,11 +3,12 @@ import type { FFTConfig, FFTResult } from '../../types/spectrum';
 import { logger } from '../logging';
 import { hannWindow, hammingWindow } from './audioUtils';
 
-export function computeFFT(signal: Float32Array, config: FFTConfig): FFTResult {
+export function computeFFT(signal: Float32Array, config: FFTConfig, sampleRate: number = 44100): FFTResult {
   logger.debug('fftProcessor', 'Computing FFT', {
     fftSize: config.fftSize,
     signalLength: signal.length,
     window: config.window,
+    sampleRate,
   });
 
   const fft = new FFT(config.fftSize);
@@ -35,8 +36,7 @@ export function computeFFT(signal: Float32Array, config: FFTConfig): FFTResult {
     phases[i] = Math.atan2(imag, real);
   }
 
-  // Generate frequency array (assume 44100 Hz sample rate)
-  const sampleRate = 44100;
+  // Generate frequency array using actual sample rate
   const frequencies = new Float32Array(config.fftSize / 2);
   for (let i = 0; i < config.fftSize / 2; i++) {
     frequencies[i] = (i * sampleRate) / config.fftSize;
