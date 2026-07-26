@@ -80,6 +80,9 @@ tomas/
 ├── vite.config.ts
 ├── vitest.config.ts
 ├── tsconfig.json
+├── .env.example                 # Template (checked in)
+├── .env                         # Local overrides (git-ignored)
+├── .gitignore
 ├── package.json
 └── README.md
 ```
@@ -503,9 +506,25 @@ Playwright: Upload files, verify plots, trigger IR, verify display, download/rei
 ```
 
 **Environment & Debug**:
-- `VITE_DEBUG_MODE=true` — Enable debug logging on startup (optional)
+- `.env.example` — Template with all available vars (check into repo)
+- `.env` — Local overrides (git-ignored)
+- `VITE_DEBUG_MODE=true|false` — Enable debug logging on startup (default: false)
 - `VITE_LOG_LEVEL=debug|info|warn|error` — Set initial log level (default: info)
+- `VITE_MAX_RECORDING_DURATION=20000` — Max recording length in ms (default: 20000)
+- `VITE_LEVEL_THRESHOLD_DB=-40` — Default auto-trigger threshold in dB (default: -40)
 - Runtime toggle: DebugPanel.vue or keyboard shortcut (Ctrl+Shift+D)
+
+**vite.config.ts**:
+- Use `import.meta.env.VITE_*` to access vars
+- Ensure `.env.example` is tracked; `.env` is `.gitignore`d
+
+**loggers.ts**:
+```typescript
+const DEBUG_MODE = import.meta.env.VITE_DEBUG_MODE === 'true'
+const LOG_LEVEL = import.meta.env.VITE_LOG_LEVEL || 'info'
+logger.setDebugMode(DEBUG_MODE)
+logger.setLevel(LOG_LEVEL)
+```
 
 **Waveform rendering**:
 - **wavesurfer.js** (recommended): Interactive waveform, zoom, selection plugin, ~50KB. Use for MVP.
@@ -520,8 +539,9 @@ Playwright: Upload files, verify plots, trigger IR, verify display, download/rei
 ### Phase 1: Core DSP Pipeline & Logging (Weeks 1-2)
 
 1. Vite + TypeScript + Vue + Pinia setup
-2. Create types (audio.ts, spectrum.ts, ir.ts)
-3. logging.ts + logger setup (globally available)
+2. Create `.env.example` + `.env` (git-ignored) with defaults
+3. Create types (audio.ts, spectrum.ts, ir.ts)
+4. logging.ts + logger setup (read env vars, globally available)
 4. wavParser.ts + unit tests (log all parsing steps)
 5. fftProcessor.ts + unit tests (fft.js, log FFT params)
 6. spectrum.ts + tests
