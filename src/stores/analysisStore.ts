@@ -97,6 +97,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
   async function computeSpectra(config: FFTConfig): Promise<void> {
     logger.info('analysisStore', 'Computing spectra', { fftSize: config.fftSize });
 
+    // Validate audio loaded
     if (audioBuffers.value.A.length === 0 || audioBuffers.value.B.length === 0) {
       throw new Error('Both audio files must be loaded before computing spectra');
     }
@@ -111,18 +112,32 @@ export const useAnalysisStore = defineStore('analysis', () => {
       selections.value.B.endSample,
     );
 
-    const fftResultA = computeFFT(signalA, config, sampleRates.value.A);
-    const fftResultB = computeFFT(signalB, config, sampleRates.value.B);
+    // Validate signal lengths
+    const minLength = 128; // Minimum for any FFT window
+    if (signalA.length < minLength) {
+      throw new Error(`Signal A too short (${signalA.length} samples, min ${minLength})`);
+    }
+    if (signalB.length < minLength) {
+      throw new Error(`Signal B too short (${signalB.length} samples, min ${minLength})`);
+    }
 
-    spectra.value.A = extractSpectrum(fftResultA);
-    spectra.value.B = extractSpectrum(fftResultB);
+    try {
+      const fftResultA = computeFFT(signalA, config, sampleRates.value.A);
+      const fftResultB = computeFFT(signalB, config, sampleRates.value.B);
 
-    logger.info('analysisStore', 'Spectra computed', {
-      binsA: spectra.value.A.frequencies.length,
-      binsB: spectra.value.B.frequencies.length,
-      sampleRateA: sampleRates.value.A,
-      sampleRateB: sampleRates.value.B,
-    });
+      spectra.value.A = extractSpectrum(fftResultA);
+      spectra.value.B = extractSpectrum(fftResultB);
+
+      logger.info('analysisStore', 'Spectra computed', {
+        binsA: spectra.value.A.frequencies.length,
+        binsB: spectra.value.B.frequencies.length,
+        sampleRateA: sampleRates.value.A,
+        sampleRateB: sampleRates.value.B,
+      });
+    } catch (error) {
+      logger.error('analysisStore', 'FFT computation failed', { error: String(error) });
+      throw error;
+    }
   }
 
   async function computeIR(config: IRDerivationConfig): Promise<void> {

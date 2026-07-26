@@ -50,3 +50,19 @@
 [ 1483173ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5174/src/components/ControlPanel.vue?t=1785067830980:0
 [ 1483174ms] [ERROR] [hmr] Failed to reload /src/components/ControlPanel.vue. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:175
 [ 1494711ms] [ERROR] [hmr] Failed to reload /src/App.vue. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:175
+[ 1755158ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5174/src/stores/analysisStore.ts?t=1785068102948:0
+[ 1755158ms] [ERROR] [hmr] Failed to reload /src/components/WaveformViewer.vue. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:175
+[ 1755158ms] [ERROR] [hmr] Failed to reload /src/components/ImpulseResponseDisplay.vue. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:175
+[ 1755158ms] [ERROR] [hmr] Failed to reload /src/components/PlaybackPanel.vue. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:175
+[ 1755158ms] [ERROR] [hmr] Failed to reload /src/components/SpectrumViewer.vue. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:175
+[ 1755158ms] [ERROR] [hmr] Failed to reload /src/components/RecordingPanel.vue. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:175
+[ 1755159ms] [ERROR] [hmr] Failed to reload /src/App.vue. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:175
+[ 1755159ms] [ERROR] [hmr] Failed to reload /src/components/FileUpload.vue. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:175
+[ 1755206ms] [ERROR] [hmr] Failed to reload /src/components/ControlPanel.vue. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5174/@vite/client:175
+[ 1768222ms] [LOG] [2026-07-26T12:15:16.153Z] [INFO] [WaveformViewer] Mounted  @ http://localhost:5174/src/services/logging.ts:50
+[ 1768223ms] [LOG] [2026-07-26T12:15:16.155Z] [INFO] [SpectrumViewer] Mounted  @ http://localhost:5174/src/services/logging.ts:50
+[ 1768223ms] [LOG] [2026-07-26T12:15:16.155Z] [INFO] [ImpulseResponseDisplay] Mounted  @ http://localhost:5174/src/services/logging.ts:50
+[ 1768224ms] [LOG] [2026-07-26T12:15:16.155Z] [INFO] [App] Application mounted  @ http://localhost:5174/src/services/logging.ts:50
+[ 1768228ms] [LOG] [2026-07-26T12:15:16.159Z] [INFO] [WaveformViewer] Mounted  @ http://localhost:5174/src/services/logging.ts:50
+[ 1768228ms] [LOG] [2026-07-26T12:15:16.160Z] [INFO] [SpectrumViewer] Mounted  @ http://localhost:5174/src/services/logging.ts:50
+[ 1768229ms] [LOG] [2026-07-26T12:15:16.160Z] [INFO] [ImpulseResponseDisplay] Mounted  @ http://localhost:5174/src/services/logging.ts:50

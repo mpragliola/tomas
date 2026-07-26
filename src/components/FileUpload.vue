@@ -89,6 +89,11 @@
         </div>
       </div>
     </div>
+
+    <!-- Status Message -->
+    <div v-if="statusMessage" class="status-message">
+      {{ statusMessage }}
+    </div>
   </div>
 </template>
 
@@ -106,6 +111,7 @@ const dragActiveA = ref(false);
 const dragActiveB = ref(false);
 const loadingA = ref(false);
 const loadingB = ref(false);
+const statusMessage = ref('');
 
 const emit = defineEmits<{
   'file-loaded': [{ slot: 'A' | 'B'; file: File }];
@@ -135,13 +141,30 @@ async function handleDrop(event: DragEvent, slot: 'A' | 'B'): Promise<void> {
 }
 
 async function loadFile(file: File, slot: 'A' | 'B'): Promise<void> {
+  // Validate file type
   if (!file.name.endsWith('.wav')) {
-    logger.warn('FileUpload', 'Invalid file type', { fileName: file.name });
+    const error = `Invalid file type. Expected .wav, got ${file.name.split('.').pop() || 'unknown'}`;
+    logger.warn('FileUpload', error, { fileName: file.name });
+    statusMessage.value = error;
+    setTimeout(() => { statusMessage.value = ''; }, 3000);
     return;
   }
 
-  if (file.size > 100 * 1024 * 1024) {
-    logger.warn('FileUpload', 'File too large (max 100MB)', { size: file.size });
+  // Validate file size
+  const MAX_SIZE = 100 * 1024 * 1024; // 100MB
+  if (file.size === 0) {
+    const error = 'File is empty';
+    logger.warn('FileUpload', error);
+    statusMessage.value = error;
+    setTimeout(() => { statusMessage.value = ''; }, 3000);
+    return;
+  }
+
+  if (file.size > MAX_SIZE) {
+    const error = `File too large. Max 100MB, got ${(file.size / 1024 / 1024).toFixed(1)}MB`;
+    logger.warn('FileUpload', error, { size: file.size });
+    statusMessage.value = error;
+    setTimeout(() => { statusMessage.value = ''; }, 3000);
     return;
   }
 
@@ -162,9 +185,19 @@ async function loadFile(file: File, slot: 'A' | 'B'): Promise<void> {
     }
 
     emit('file-loaded', { slot, file });
-    logger.info('FileUpload', `File loaded: ${slot}`, { fileName: file.name });
+    logger.info('FileUpload', `File loaded: ${slot}`, { fileName: file.name, size: file.size });
   } catch (error) {
-    logger.error('FileUpload', `Failed to load file ${slot}`, { error: String(error) });
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    logger.error('FileUpload', `Failed to load file ${slot}`, { error: errorMsg });
+    statusMessage.value = `Failed to load ${slot}: ${errorMsg}`;
+    setTimeout(() => { statusMessage.value = ''; }, 5000);
+
+    // Clear file on error
+    if (isSlotA) {
+      fileA.value = null;
+    } else {
+      fileB.value = null;
+    }
   } finally {
     if (isSlotA) {
       loadingA.value = false;
@@ -341,5 +374,17 @@ function clearFile(slot: 'A' | 'B'): void {
   border-color: #FF3B30;
   color: #FF3B30;
   background-color: rgba(255, 59, 48, 0.05);
+}
+
+.status-message {
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  background-color: rgba(255, 59, 48, 0.1);
+  border: 1px solid #FF3B30;
+  color: #FF3B30;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  animation: slideIn 200ms ease-out;
 }
 </style>
