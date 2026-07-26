@@ -76,51 +76,42 @@
 
     <div class="section">
       <div class="section-header">
-        <label class="section-title">IR Derivation</label>
+        <label class="section-title">Tone Match (A → B)</label>
       </div>
 
-      <!-- Method -->
+      <!-- Taps -->
       <div class="control-row">
-        <label class="input-label">Method</label>
-        <select v-model="irMethod" class="input-select">
-          <option value="difference">Difference (A - B)</option>
-          <option value="ratio">Ratio (A / B)</option>
+        <label class="input-label">IR Length (taps)</label>
+        <select v-model.number="taps" class="input-select">
+          <option value="512">512</option>
+          <option value="1024">1024</option>
+          <option value="2048">2048</option>
+          <option value="4096">4096</option>
         </select>
       </div>
 
-      <!-- Phase -->
+      <!-- Max boost -->
       <div class="control-row">
-        <label class="input-label">Phase</label>
-        <select v-model="irPhase" class="input-select">
-          <option value="preserve-B">Preserve B</option>
-          <option value="minimum-phase">Minimum Phase</option>
-        </select>
-      </div>
-
-      <!-- Max Length -->
-      <div class="control-row">
-        <label class="input-label">Max IR Length (ms)</label>
+        <label class="input-label">Max Boost / Cut (dB)</label>
         <input
           type="number"
-          v-model.number="maxLength"
-          min="10"
-          max="1000"
-          step="10"
-          class="input-number"
-        />
-      </div>
-
-      <!-- Truncation dB -->
-      <div class="control-row">
-        <label class="input-label">Truncation (dB)</label>
-        <input
-          type="number"
-          v-model.number="truncationDb"
-          min="-80"
-          max="-20"
+          v-model.number="maxBoostDb"
+          min="3"
+          max="36"
           step="1"
           class="input-number"
         />
+      </div>
+
+      <!-- Smoothing -->
+      <div class="control-row">
+        <label class="input-label">Smoothing</label>
+        <select v-model.number="smoothingOctave" class="input-select">
+          <option :value="1 / 3">1/3 octave</option>
+          <option :value="1 / 6">1/6 octave</option>
+          <option :value="1 / 12">1/12 octave</option>
+          <option :value="1 / 24">1/24 octave</option>
+        </select>
       </div>
     </div>
     </template>
@@ -132,15 +123,13 @@ import { ref, computed } from 'vue';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { logger } from '../services/logging';
 import type { FFTConfig } from '../types/spectrum';
-import type { IRDerivationConfig } from '../types/ir';
 
 const store = useAnalysisStore();
 const fftSize = ref<512 | 1024 | 2048 | 4096 | 8192 | 16384>(2048);
 const window = ref<'hann' | 'hamming' | 'rectangular'>('hann');
-const irMethod = ref<'difference' | 'ratio'>('difference');
-const irPhase = ref<'preserve-B' | 'minimum-phase'>('preserve-B');
-const maxLength = ref(1000);
-const truncationDb = ref(-40);
+const taps = ref(2048);
+const maxBoostDb = ref(18);
+const smoothingOctave = ref(1 / 6);
 const isComputing = ref(false);
 const statusMessage = ref('');
 const showAdvanced = ref(false);
@@ -195,15 +184,12 @@ async function computeIR(): Promise<void> {
   statusMessage.value = 'Deriving IR...';
 
   try {
-    const config: IRDerivationConfig = {
-      method: irMethod.value,
-      phase: irPhase.value,
-      maxLength: (maxLength.value / 1000) * store.sampleRates.A,
-      truncationDb: truncationDb.value,
-    };
-
-    await store.computeIR(config);
-    statusMessage.value = `IR derived ✓ (${store.ir?.length} samples)`;
+    await store.computeToneMatchIR({
+      taps: taps.value,
+      maxBoostDb: maxBoostDb.value,
+      smoothingOctave: smoothingOctave.value,
+    });
+    statusMessage.value = `IR derived ✓ (${store.ir?.length} taps)`;
     logger.info('ControlPanel', 'IR computed');
     emit('params-changed', { action: 'ir-computed' });
 

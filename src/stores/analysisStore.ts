@@ -5,9 +5,10 @@ import type { ImpulseResponse, IRDerivationConfig } from '../types/ir';
 import type { RecorderConfig, AudioBuffer } from '../types/audio';
 import { logger } from '../services/logging';
 import { parseWavFile } from '../services/audio/wavParser';
-import { computeFFT } from '../services/audio/fftProcessor';
+import { computeAveragedFFT } from '../services/audio/fftProcessor';
 import { extractSpectrum } from '../services/dsp/spectrum';
-import { deriveIR } from '../services/dsp/irDerivation';
+import { deriveIR, deriveToneMatchIR } from '../services/dsp/irDerivation';
+import type { ToneMatchConfig } from '../services/dsp/irDerivation';
 import { convolveAudio } from '../services/audio/convolution';
 import { AudioRecorder } from '../services/audio/recorder';
 
@@ -134,7 +135,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
       }
 
       try {
-        const fftResult = computeFFT(signal, config, sampleRates.value[slot]);
+        const fftResult = computeAveragedFFT(signal, config, sampleRates.value[slot]);
         spectra.value[slot] = extractSpectrum(fftResult);
         logger.info('analysisStore', `Spectrum ${slot} computed`, {
           bins: spectra.value[slot]?.frequencies.length,
@@ -170,8 +171,8 @@ export const useAnalysisStore = defineStore('analysis', () => {
     }
 
     try {
-      const fftResultA = computeFFT(signalA, config, sampleRates.value.A);
-      const fftResultB = computeFFT(signalB, config, sampleRates.value.B);
+      const fftResultA = computeAveragedFFT(signalA, config, sampleRates.value.A);
+      const fftResultB = computeAveragedFFT(signalB, config, sampleRates.value.B);
 
       spectra.value.A = extractSpectrum(fftResultA);
       spectra.value.B = extractSpectrum(fftResultB);
@@ -197,6 +198,28 @@ export const useAnalysisStore = defineStore('analysis', () => {
 
     ir.value = deriveIR(spectra.value.A, spectra.value.B, config, sampleRates.value.A);
     logger.info('analysisStore', 'IR computed', { length: ir.value.length });
+  }
+
+  /**
+   * Tone-match IR: load the result after A and it takes on B's tone.
+   * A is the working sound, B is the reference.
+   */
+  async function computeToneMatchIR(config: ToneMatchConfig): Promise<void> {
+    if (!spectra.value.A || !spectra.value.B) {
+      throw new Error('Both spectra must be computed before deriving a tone-match IR');
+    }
+
+    ir.value = deriveToneMatchIR(
+      spectra.value.A,
+      spectra.value.B,
+      sampleRates.value.A,
+      config,
+    );
+
+    logger.info('analysisStore', 'Tone-match IR computed', {
+      taps: ir.value.length,
+      sampleRate: ir.value.sampleRate,
+    });
   }
 
   async function applyIR(): Promise<void> {
@@ -289,6 +312,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     updateSelection,
     computeSpectra,
     computeIR,
+    computeToneMatchIR,
     applyIR,
     playback,
     stopPlayback,

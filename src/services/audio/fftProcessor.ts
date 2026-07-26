@@ -14,16 +14,10 @@ export function computeFFT(signal: Float32Array, config: FFTConfig, sampleRate: 
   const fft = new FFT(config.fftSize);
   const windowed = applyWindow(signal, config.fftSize, config.window);
 
-  // Prepare complex array for FFT
-  const complex = fft.createComplexArray();
-  for (let i = 0; i < config.fftSize; i++) {
-    complex[i * 2] = windowed[i] || 0;
-    complex[i * 2 + 1] = 0;
-  }
-
-  // Compute real FFT
+  // realTransform expects a *real* input array — passing an interleaved complex
+  // array would zero-stuff the signal and alias the spectrum.
   const spectrum = fft.createComplexArray();
-  fft.realTransform(spectrum, complex);
+  fft.realTransform(spectrum, windowed);
 
   // Extract magnitude and phase
   const magnitudes = new Float32Array(config.fftSize / 2);
@@ -50,6 +44,86 @@ export function computeFFT(signal: Float32Array, config: FFTConfig, sampleRate: 
   return { magnitudes, phases, frequencies };
 }
 
+/**
+ * Welch-averaged magnitude spectrum across the whole signal.
+ *
+ * `computeFFT` only ever looks at the first `fftSize` samples, which for a multi-minute
+ * recording characterises a few milliseconds of audio. Tone matching needs the average
+ * behaviour of the whole take, so this averages the power spectrum over overlapping frames.
+ *
+ * The returned phases are zero: averaged magnitudes have no meaningful phase.
+ */
+export function computeAveragedFFT(
+  signal: Float32Array,
+  config: FFTConfig,
+  sampleRate: number = 44100,
+  maxFrames: number = 512,
+): FFTResult {
+  const { fftSize } = config;
+
+  if (signal.length < fftSize) {
+    return computeFFT(signal, config, sampleRate);
+  }
+
+  const binCount = fftSize / 2;
+  const hop = Math.max(1, Math.round(fftSize * (1 - config.overlap)));
+  const totalFrames = Math.floor((signal.length - fftSize) / hop) + 1;
+  // Spread a bounded number of frames across the whole signal rather than analysing
+  // only the first `maxFrames` of them.
+  const stride = Math.max(1, Math.ceil(totalFrames / maxFrames));
+
+  const fft = new FFT(fftSize);
+  const spectrum = fft.createComplexArray();
+  const window = buildWindow(fftSize, config.window);
+  const frame = new Float32Array(fftSize);
+  const power = new Float64Array(binCount);
+
+  let frames = 0;
+  for (let f = 0; f < totalFrames; f += stride) {
+    const start = f * hop;
+    for (let i = 0; i < fftSize; i++) {
+      frame[i] = signal[start + i] * window[i];
+    }
+
+    fft.realTransform(spectrum, frame);
+
+    for (let i = 0; i < binCount; i++) {
+      const real = spectrum[i * 2];
+      const imag = spectrum[i * 2 + 1];
+      power[i] += real * real + imag * imag;
+    }
+    frames++;
+  }
+
+  const magnitudes = new Float32Array(binCount);
+  for (let i = 0; i < binCount; i++) {
+    magnitudes[i] = Math.sqrt(power[i] / frames) / binCount;
+  }
+
+  const frequencies = new Float32Array(binCount);
+  for (let i = 0; i < binCount; i++) {
+    frequencies[i] = (i * sampleRate) / fftSize;
+  }
+
+  logger.debug('fftProcessor', 'Averaged FFT computed', {
+    bins: binCount,
+    frames,
+    totalFrames,
+    sampleRate,
+  });
+
+  return { magnitudes, phases: new Float32Array(binCount), frequencies };
+}
+
+function buildWindow(
+  length: number,
+  windowType: 'hann' | 'hamming' | 'rectangular',
+): Float32Array {
+  if (windowType === 'hann') return hannWindow(length);
+  if (windowType === 'hamming') return hammingWindow(length);
+  return new Float32Array(length).fill(1);
+}
+
 function applyWindow(
   signal: Float32Array,
   fftSize: number,
@@ -57,16 +131,7 @@ function applyWindow(
 ): Float32Array {
   const windowed = new Float32Array(fftSize);
   const windowSize = Math.min(signal.length, fftSize);
-
-  let window: Float32Array;
-  if (windowType === 'hann') {
-    window = hannWindow(windowSize);
-  } else if (windowType === 'hamming') {
-    window = hammingWindow(windowSize);
-  } else {
-    // rectangular
-    window = new Float32Array(windowSize).fill(1);
-  }
+  const window = buildWindow(windowSize, windowType);
 
   for (let i = 0; i < windowSize; i++) {
     windowed[i] = (signal[i] || 0) * window[i];

@@ -37,14 +37,26 @@
         </div>
         <div class="meta-row">
           <span class="meta-label">Peak</span>
-          <span class="meta-value">{{ peakAmplitude.toFixed(3) }}</span>
+          <span class="meta-value">{{ formatPeak(peakAmplitude) }}</span>
         </div>
       </div>
 
       <!-- Action Buttons -->
+      <div class="control-row">
+        <label class="meta-label">Bit Depth</label>
+        <select v-model.number="bitDepth" class="input-select">
+          <option value="24">24-bit</option>
+          <option value="16">16-bit</option>
+          <option value="8">8-bit</option>
+        </select>
+      </div>
+
       <div class="actions">
-        <button @click="downloadIR" class="btn btn-secondary" title="Download IR as WAV">
-          ⬇ Export WAV
+        <button @click="downloadIR(48000)" class="btn btn-secondary" title="Download IR as 48 kHz WAV">
+          ⬇ 48 kHz
+        </button>
+        <button @click="downloadIR(44100)" class="btn btn-secondary" title="Download IR as 44.1 kHz WAV">
+          ⬇ 44.1 kHz
         </button>
         <button @click="copyToClipboard" class="btn btn-secondary" title="Copy JSON to clipboard">
           📋 JSON
@@ -60,12 +72,16 @@ import { ref, onMounted, watch, nextTick } from 'vue';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { logger } from '../services/logging';
 import { peak } from '../utils/mathUtils';
+import { encodeWavPcm, downloadFile } from '../utils/fileUtils';
+import type { PcmBitDepth } from '../utils/fileUtils';
+import { resample } from '../services/audio/audioUtils';
 
 const store = useAnalysisStore();
 const canvas = ref<HTMLCanvasElement>();
 const canvasWidth = ref(280);
 const canvasHeight = ref(120);
 const peakAmplitude = ref(0);
+const bitDepth = ref<PcmBitDepth>(24);
 
 const emit = defineEmits<{
   'ir-derived': [{ length: number }];
@@ -147,59 +163,39 @@ async function drawIR(): Promise<void> {
   logger.debug('ImpulseResponseDisplay', 'IR drawn', { samples: ir.length, peak: maxPeakVal });
 }
 
-function downloadIR(): void {
+/** Pad or trim to an exact tap count — IR loaders expect a power-of-two length. */
+function fitToLength(samples: Float32Array, length: number): Float32Array {
+  if (samples.length === length) return samples;
+  const out = new Float32Array(length);
+  out.set(samples.subarray(0, Math.min(samples.length, length)));
+  return out;
+}
+
+// Peaks are often well below 0.001, where toFixed(3) would just render "0.000"
+function formatPeak(value: number): string {
+  if (value === 0) return '0';
+  return value >= 0.001 ? value.toFixed(3) : value.toExponential(2);
+}
+
+function downloadIR(targetRate: number): void {
   if (!store.ir) return;
 
-  logger.info('ImpulseResponseDisplay', 'Exporting IR as WAV');
+  const sourceRate = store.ir.sampleRate;
+  // Resampling changes the tap count, so re-trim to the derived length that the
+  // IR loader expects (a power of two).
+  const resampled = resample(store.ir.coefficients, sourceRate, targetRate);
+  const samples = fitToLength(resampled, store.ir.length);
+  const wav = encodeWavPcm(samples, targetRate, bitDepth.value);
 
-  const sampleRate = store.ir.sampleRate;
-  const pcm = store.ir.coefficients;
+  const rateLabel = targetRate === 44100 ? '44k1' : `${Math.round(targetRate / 1000)}k`;
+  downloadFile(wav, `tone-match-${samples.length}-${rateLabel}-${bitDepth.value}bit.wav`, 'audio/wav');
 
-  // Create WAV file
-  const numChannels = 1;
-  const bitsPerSample = 32;
-  const byteRate = sampleRate * numChannels * bitsPerSample / 8;
-  const blockAlign = numChannels * bitsPerSample / 8;
-  const dataSize = pcm.length * blockAlign;
-
-  const buffer = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(buffer);
-
-  // WAV header
-  const writeString = (offset: number, string: string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
-    }
-  };
-
-  writeString(0, 'RIFF');
-  view.setUint32(4, 36 + dataSize, true);
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, byteRate, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bitsPerSample, true);
-  writeString(36, 'data');
-  view.setUint32(40, dataSize, true);
-
-  // Write PCM data
-  for (let i = 0; i < pcm.length; i++) {
-    view.setFloat32(44 + i * 4, pcm[i], true);
-  }
-
-  const blob = new Blob([buffer], { type: 'audio/wav' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'ir.wav';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  logger.info('ImpulseResponseDisplay', 'Exported IR as WAV', {
+    sourceRate,
+    targetRate,
+    bitDepth: bitDepth.value,
+    taps: samples.length,
+  });
 }
 
 function copyToClipboard(): void {

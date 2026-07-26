@@ -2,16 +2,6 @@
   <div class="spectrum-viewer">
     <div class="spectrum-header">
       <h3 class="spectrum-title">Frequency Spectrum</h3>
-      <div class="spectrum-controls">
-        <label class="checkbox-label">
-          <input type="checkbox" v-model="showA" />
-          <span class="label-text">A</span>
-        </label>
-        <label class="checkbox-label">
-          <input type="checkbox" v-model="showB" />
-          <span class="label-text">B</span>
-        </label>
-      </div>
     </div>
 
     <!-- Container stays mounted so the ref is always valid; states overlay it -->
@@ -37,8 +27,6 @@ import { logger } from '../services/logging';
 
 const store = useAnalysisStore();
 const plotContainer = ref<HTMLElement>();
-const showA = ref(true);
-const showB = ref(true);
 let plotInitialized = false;
 
 onMounted(async () => {
@@ -57,10 +45,6 @@ watch(
   { deep: true }
 );
 
-watch([showA, showB], async () => {
-  await updatePlot();
-});
-
 async function updatePlot(): Promise<void> {
   // Let any pending render flush before touching the container
   await nextTick();
@@ -76,7 +60,7 @@ async function updatePlot(): Promise<void> {
     const traces: any[] = [];
     const { A, B } = store.spectra;
 
-    if (showA.value && A) {
+    if (A) {
       traces.push({
         x: Array.from(A.frequencies).slice(0, 500),
         y: Array.from(A.magnitudesDb).slice(0, 500),
@@ -91,7 +75,7 @@ async function updatePlot(): Promise<void> {
       });
     }
 
-    if (showB.value && B) {
+    if (B) {
       traces.push({
         x: Array.from(B.frequencies).slice(0, 500),
         y: Array.from(B.magnitudesDb).slice(0, 500),
@@ -182,36 +166,6 @@ async function updatePlot(): Promise<void> {
   font-size: 16px;
   font-weight: 600;
   font-family: var(--font-display);
-}
-
-.spectrum-controls {
-  display: flex;
-  gap: 12px;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.checkbox-label input {
-  cursor: pointer;
-}
-
-.label-text {
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 500;
-  background-color: var(--color-border);
-}
-
-.checkbox-label input:checked + .label-text {
-  background-color: var(--color-accent);
-  color: white;
 }
 
 .plot-area {
