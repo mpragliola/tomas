@@ -1,5 +1,42 @@
 <template>
   <div class="control-panel">
+    <!-- Compute Buttons - TOP (Horizontal) -->
+    <div class="compute-buttons">
+      <button
+        @click="computeSpectra"
+        class="btn-icon-text"
+        :disabled="isComputing"
+        title="Compute Spectrum"
+      >
+        📊
+      </button>
+
+      <button
+        @click="computeIR"
+        class="btn-icon-text"
+        :disabled="isComputing || !store.spectra.A"
+        title="Derive IR"
+      >
+        🔧
+      </button>
+
+      <button
+        @click="applyIR"
+        class="btn-icon-text"
+        :disabled="isComputing || !store.ir"
+        title="Apply IR"
+      >
+        ✓
+      </button>
+    </div>
+
+    <!-- Status -->
+    <div v-if="statusMessage" class="status-message">
+      {{ statusMessage }}
+    </div>
+
+    <div class="divider"></div>
+
     <div class="section">
       <div class="section-header">
         <label class="section-title">FFT Settings</label>
@@ -79,43 +116,6 @@
           class="input-number"
         />
       </div>
-    </div>
-
-    <div class="divider"></div>
-
-    <!-- Compute Buttons - Horizontal -->
-    <div class="compute-buttons">
-      <button
-        @click="computeSpectra"
-        class="btn-icon-text"
-        :disabled="isComputing"
-        title="Compute Spectrum"
-      >
-        📊
-      </button>
-
-      <button
-        @click="computeIR"
-        class="btn-icon-text"
-        :disabled="isComputing || !store.spectra.A"
-        title="Derive IR"
-      >
-        🔧
-      </button>
-
-      <button
-        @click="applyIR"
-        class="btn-icon-text"
-        :disabled="isComputing || !store.ir"
-        title="Apply IR"
-      >
-        ✓
-      </button>
-    </div>
-
-    <!-- Status -->
-    <div v-if="statusMessage" class="status-message">
-      {{ statusMessage }}
     </div>
   </div>
 </template>
@@ -243,7 +243,9 @@ async function applyIR(): Promise<void> {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  overflow: auto;
+  overflow: visible;
+  flex-shrink: 0;
+  min-height: auto;
 }
 
 .section {

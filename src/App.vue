@@ -15,9 +15,9 @@
       <!-- Left panel: Input & Controls -->
       <aside class="panel panel-input panel-side-bg">
         <FileUpload @file-loaded="onFileLoaded" />
+        <ControlPanel @params-changed="onParamsChanged" />
         <RecordingPanel @recorded="onRecorded" />
         <WaveformViewer />
-        <ControlPanel @params-changed="onParamsChanged" />
       </aside>
 
       <!-- Center: Spectrum visualization -->

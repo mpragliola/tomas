@@ -182,15 +182,16 @@ watch(
   flex-direction: column;
   gap: 12px;
   flex: 1;
+  min-height: 0;
 }
 
 .empty-state {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 200px;
+  height: 80px;
   color: var(--color-text-secondary);
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .waveforms {
@@ -198,6 +199,7 @@ watch(
   flex-direction: column;
   gap: 12px;
   flex: 1;
+  min-height: 0;
 }
 
 .waveform-section {

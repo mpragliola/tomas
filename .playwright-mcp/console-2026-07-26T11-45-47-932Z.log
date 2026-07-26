@@ -9,3 +9,41 @@
 [   56076ms] [WARNING] [Vue warn]: Property "loadingB" was accessed during render but is not defined on instance. 
   at <FileUpload onFileLoaded=fn<onFileLoaded> > 
   at <App> @ http://localhost:5174/node_modules/.vite/deps/chunk-LOENNIKQ.js?v=d2ce3270:2229
+[  970010ms] [LOG] Scrolled to: 369.71429443359375 max: 896 @ :4
+[  982161ms] [LOG] Panel children count: 4 @ :2
+[  982161ms] [LOG] Panel scroll height: 896 @ :3
+[  982161ms] [LOG] Panel client height: 526 @ :4
+[  982161ms] [LOG] Control panel found: true @ :8
+[  982161ms] [LOG] Control panel text: FFT SettingsFFT Size512102420484096819216384WindowHannHammingRectangularIR DerivationMethodDifference (A - B)Ratio (A / B)PhasePreserve BMinimum PhaseMax IR Length (ms)Truncation (dB) 📊  🔧  ✓  @ :10
+[  982161ms] [LOG] Child 0: file-upload @ :16
+[  982161ms] [LOG] Child 1: recording-panel @ :16
+[  982161ms] [LOG] Child 2: waveform-viewer @ :16
+[  982162ms] [LOG] Child 3: control-panel @ :16
+[ 1006516ms] [LOG] [2026-07-26T12:02:34.448Z] [INFO] [WaveformViewer] Mounted  @ http://localhost:5174/src/services/logging.ts:50
+[ 1006517ms] [LOG] [2026-07-26T12:02:34.448Z] [INFO] [SpectrumViewer] Mounted  @ http://localhost:5174/src/services/logging.ts:50
+[ 1006517ms] [LOG] [2026-07-26T12:02:34.449Z] [INFO] [ImpulseResponseDisplay] Mounted  @ http://localhost:5174/src/services/logging.ts:50
+[ 1006517ms] [LOG] [2026-07-26T12:02:34.449Z] [INFO] [App] Application mounted  @ http://localhost:5174/src/services/logging.ts:50
+[ 1029260ms] [LOG] Button count: 3 @ :2
+[ 1029260ms] [LOG] Button 0:  📊  DOMRect @ :4
+[ 1029263ms] [LOG] Button 1:  🔧  DOMRect @ :4
+[ 1029263ms] [LOG] Button 2:  ✓  DOMRect @ :4
+[ 1029263ms] [LOG] Compute buttons div found: true @ :8
+[ 1029263ms] [LOG] Compute buttons rect: DOMRect @ :10
+[ 1042672ms] [LOG] Scrolled button into view @ :5
+[ 1061234ms] [LOG] Panel: {top: 74.85714721679688, bottom: 602.2857360839844, height: 527.4285888671875} @ :6
+[ 1061234ms] [LOG] Button 0: {top: 569.0892944335938, bottom: 610.2321548461914, x: 24.571430206298828, visible: true} @ :10
+[ 1061234ms] [LOG] Button 1: {top: 569.0892944335938, bottom: 610.2321548461914, x: 106.85714721679688, visible: true} @ :10
+[ 1061234ms] [LOG] Button 2: {top: 569.0892944335938, bottom: 610.2321548461914, x: 189.1428680419922, visible: true} @ :10
+[ 1231102ms] [LOG] Buttons found: 3 @ :2
+[ 1231102ms] [LOG] First button position: {top: 126.08929443359375, bottom: 167.2321548461914} @ :6
+[ 1231103ms] [LOG] Button visible: true @ :7
+[ 1269092ms] [LOG] Total buttons: 3 @ :2
+[ 1269092ms] [LOG] Button 0: display=flex, visibility=visible, opacity=1 @ :5
+[ 1269092ms] [LOG] Button 1: display=flex, visibility=visible, opacity=0.5 @ :5
+[ 1269092ms] [LOG] Button 2: display=flex, visibility=visible, opacity=0.5 @ :5
+[ 1269092ms] [LOG] Compute buttons div: display=flex, visibility=visible @ :11
+[ 1286222ms] [LOG] Control panel HTML: <div data-v-d4337e78="" data-v-7a7a37b1="" class="control-panel"><!-- Compute Buttons - Horizontal --><div data-v-d4337e78="" class="compute-buttons"><button data-v-d4337e78="" class="btn-icon-text" title="Compute Spectrum"> 📊 </button><button data-v-d4337e78="" class="btn-icon-text" disabled="" title="Derive IR"> 🔧 </button><button data-v-d4337e78="" class="btn-icon-text" disabled="" title="Apply IR"> ✓ </button></div><!-- Status --><!--v-if--><div data-v-d4337e78="" class="divider"></div><di @ :3
+[ 1286222ms] [LOG] Control panel rect: DOMRect @ :4
+[ 1300482ms] [LOG] Control panel: top=607.232177734375, bottom=607.232177734375, left=24.571430206298828, height=0 @ :6
+[ 1300482ms] [LOG] Button 0: top=86.08928680419922, bottom=127.23214721679688, visible=true @ :12
+[ 1300482ms] [LOG] Overlays found: 0 @ :17
