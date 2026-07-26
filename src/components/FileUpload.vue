@@ -2,7 +2,7 @@
   <div class="file-upload">
     <div class="section">
       <div class="section-header">
-        <label class="section-title">Wave 1 (Target)</label>
+        <label class="section-title">Wave 1 (A — your sound)</label>
       </div>
       <div
         class="upload-area"
@@ -48,7 +48,7 @@
 
     <div class="section">
       <div class="section-header">
-        <label class="section-title">Wave 2 (Reference)</label>
+        <label class="section-title">Wave 2 (B — reference tone)</label>
       </div>
       <div
         class="upload-area"

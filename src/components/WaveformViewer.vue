@@ -5,7 +5,7 @@
       <!-- Waveform A -->
       <div class="waveform-section">
         <div class="waveform-header">
-          <label class="waveform-title">Wave 1 (Target)</label>
+          <label class="waveform-title">Wave 1 (A — your sound)</label>
           <div class="waveform-controls">
             <button @click="resetZoom" class="btn-sm btn-icon" title="Reset zoom">⟲</button>
           </div>
@@ -24,7 +24,7 @@
       <!-- Waveform B -->
       <div class="waveform-section">
         <div class="waveform-header">
-          <label class="waveform-title">Wave 2 (Reference)</label>
+          <label class="waveform-title">Wave 2 (B — reference tone)</label>
           <div class="waveform-controls">
             <button @click="resetZoom" class="btn-sm btn-icon" title="Reset zoom">⟲</button>
           </div>
