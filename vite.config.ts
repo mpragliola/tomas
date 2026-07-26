@@ -14,4 +14,12 @@ export default defineConfig({
   optimizeDeps: {
     include: ['fft.js', 'plotly.js', 'wavesurfer.js'],
   },
+  resolve: {
+    alias: {
+      'buffer/': 'buffer',
+    },
+  },
+  define: {
+    global: 'globalThis',
+  },
 })
