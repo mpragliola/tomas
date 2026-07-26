@@ -502,6 +502,11 @@ Playwright: Upload files, verify plots, trigger IR, verify display, download/rei
 }
 ```
 
+**Environment & Debug**:
+- `VITE_DEBUG_MODE=true` — Enable debug logging on startup (optional)
+- `VITE_LOG_LEVEL=debug|info|warn|error` — Set initial log level (default: info)
+- Runtime toggle: DebugPanel.vue or keyboard shortcut (Ctrl+Shift+D)
+
 **Waveform rendering**:
 - **wavesurfer.js** (recommended): Interactive waveform, zoom, selection plugin, ~50KB. Use for MVP.
 - **Custom Canvas**: Build renderer if performance critical (rare).
