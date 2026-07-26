@@ -42,7 +42,7 @@ export function deriveIR(
   const fftSize = binCount * 2;
   const fft = new FFT(fftSize);
 
-  const freqDomain = new Array(fftSize * 2);
+  const freqDomain = fft.createComplexArray();
   for (let i = 0; i < binCount; i++) {
     const real = irMagDomain[i] * Math.cos(irPhase[i]);
     const imag = irMagDomain[i] * Math.sin(irPhase[i]);
@@ -55,7 +55,8 @@ export function deriveIR(
     freqDomain[i * 2 + 1] = 0;
   }
 
-  const timeDomain = fft.inverse(freqDomain);
+  const timeDomain = fft.createComplexArray();
+  fft.inverseTransform(timeDomain, freqDomain);
 
   // Extract real part and truncate
   const irFull = new Float32Array(binCount);

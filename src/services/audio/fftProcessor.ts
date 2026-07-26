@@ -13,19 +13,20 @@ export function computeFFT(signal: Float32Array, config: FFTConfig): FFTResult {
   const fft = new FFT(config.fftSize);
   const windowed = applyWindow(signal, config.fftSize, config.window);
 
-  // Pad with zeros if signal shorter than FFT size
-  const input = new Array(config.fftSize * 2);
+  // Prepare complex array for FFT
+  const complex = fft.createComplexArray();
   for (let i = 0; i < config.fftSize; i++) {
-    input[i * 2] = windowed[i] || 0;
-    input[i * 2 + 1] = 0;
+    complex[i * 2] = windowed[i] || 0;
+    complex[i * 2 + 1] = 0;
   }
 
-  const spectrum = fft.forward(input);
+  // Compute real FFT
+  const spectrum = fft.createComplexArray();
+  fft.realTransform(spectrum, complex);
 
   // Extract magnitude and phase
   const magnitudes = new Float32Array(config.fftSize / 2);
   const phases = new Float32Array(config.fftSize / 2);
-  const nyquist = config.fftSize / (2 * signal.length);
 
   for (let i = 0; i < config.fftSize / 2; i++) {
     const real = spectrum[i * 2];
@@ -34,9 +35,9 @@ export function computeFFT(signal: Float32Array, config: FFTConfig): FFTResult {
     phases[i] = Math.atan2(imag, real);
   }
 
-  // Generate frequency array
+  // Generate frequency array (assume 44100 Hz sample rate)
+  const sampleRate = 44100;
   const frequencies = new Float32Array(config.fftSize / 2);
-  const sampleRate = signal.length / (config.fftSize * nyquist); // Derived from signal
   for (let i = 0; i < config.fftSize / 2; i++) {
     frequencies[i] = (i * sampleRate) / config.fftSize;
   }
