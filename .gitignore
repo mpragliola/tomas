@@ -4,3 +4,21 @@
 
 # IDE
 .vscode
+
+# Node
+node_modules
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Build
+dist
+.vite
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db

@@ -577,6 +577,279 @@ logger.setLevel(LOG_LEVEL)
 
 ---
 
+---
+
+# Visual Design System
+
+## Design Direction
+
+Minimalist clinical tool for audio engineers & musicians. Flat, compact, serious. DAW aesthetic (Ableton/Reaper/Cubase influences). Rounded corners soften clinical feel. Dark greys (not pure black) reduce eye strain during long sessions. Desaturated palette emphasizes data over decoration. Blue + orange spectrum colors are complementary, not saturated.
+
+---
+
+## Color Palette
+
+### Light Theme
+```
+Ground:         #F8F8F8  (warm light grey, not pure white)
+Text Primary:   #2C2C2C  (dark grey)
+Text Secondary: #666666  (medium grey)
+Accent:         #2563EB  (blue, interactive elements)
+Spectrum A:     #2563EB  (blue)
+Spectrum B:     #FF9500  (orange, complementary)
+Border/Grid:    #E0E0E0  (subtle)
+Success:        #34C759  (desaturated green)
+```
+
+### Dark Theme
+```
+Ground:         #1A1A1A  (very dark grey, NOT pure black #000000)
+Text Primary:   #E5E5E5  (light grey)
+Text Secondary: #999999  (medium grey)
+Accent:         #3B82F6  (blue, lighter for contrast)
+Spectrum A:     #3B82F6  (blue)
+Spectrum B:     #FF8800  (orange, slightly saturated for visibility)
+Border/Grid:    #333333  (subtle)
+Success:        #30B94D  (green, slightly brighter)
+```
+
+**Implementation**:
+```css
+:root {
+  --color-bg: #F8F8F8;
+  --color-text-primary: #2C2C2C;
+  --color-text-secondary: #666666;
+  --color-accent: #2563EB;
+  --color-spectrum-a: #2563EB;
+  --color-spectrum-b: #FF9500;
+  --color-border: #E0E0E0;
+  --color-success: #34C759;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #1A1A1A;
+    --color-text-primary: #E5E5E5;
+    --color-text-secondary: #999999;
+    --color-accent: #3B82F6;
+    --color-spectrum-a: #3B82F6;
+    --color-spectrum-b: #FF8800;
+    --color-border: #333333;
+    --color-success: #30B94D;
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #1A1A1A;
+  --color-text-primary: #E5E5E5;
+  --color-text-secondary: #999999;
+  --color-accent: #3B82F6;
+  --color-spectrum-a: #3B82F6;
+  --color-spectrum-b: #FF8800;
+  --color-border: #333333;
+  --color-success: #30B94D;
+}
+
+:root[data-theme="light"] {
+  --color-bg: #F8F8F8;
+  --color-text-primary: #2C2C2C;
+  --color-text-secondary: #666666;
+  --color-accent: #2563EB;
+  --color-spectrum-a: #2563EB;
+  --color-spectrum-b: #FF9500;
+  --color-border: #E0E0E0;
+  --color-success: #34C759;
+}
+```
+
+---
+
+## Typography
+
+**Typefaces** (system font stack — no external CDN due to CSP):
+```css
+--font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+--font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+--font-mono: "SF Mono", Menlo, "Courier New", monospace;
+```
+
+**Type Scale** (px):
+- `11px`: captions, micro-labels (rare)
+- `12px`: labels, small text, debug logs
+- `14px`: body copy, regular text
+- `16px`: default/normal text, input fields
+- `18px`: section headers
+- `22px`: subheadings
+- `28px`: page title
+
+**Usage**:
+- **Headings** (22/28px): Serious, no serif. Weight 600 (semibold).
+- **Body** (14/16px): Light tracking, ~65 chars wide where possible. Weight 400 (regular).
+- **Mono** (12px): Data values, numeric displays, debug output. Weight 500 (monospace natural weight).
+- **Labels** (12px): Interactive labels, captions. Weight 500, slight letter-spacing (0.5px).
+
+**Rationale**: Apple Mac aesthetic — clean, minimal, serious. No playfulness. Neutral sans-serif suits clinical context.
+
+---
+
+## Layout & Spacing
+
+**Rounded Corners**:
+- Default: `border-radius: 8px` (cards, panels, inputs, small elements)
+- Buttons: `border-radius: 20px` (pill-shaped)
+- Large panels: `border-radius: 12px`
+
+**Spacing Grid**: `8px` increments
+- Micro: 4px (between closely related elements)
+- Small: 8px (between items in a row/column)
+- Medium: 12px (between sections within a component)
+- Large: 16px (between major sections)
+- XL: 24px (between major layout blocks)
+
+**Density**: Balanced (not ultra-compact, not airy)
+- Compact where data-heavy (spectrum, waveforms, logs)
+- Breathing room between control sections
+- Gutters/padding: 16px minimum in panels
+
+**Layout Approach**: Flexbox/grid with `gap` (no per-element margins)
+
+---
+
+## Components & Interaction
+
+### Buttons
+- **Style**: Flat, pill-shaped (border-radius 20px)
+- **Padding**: 8px vertical, 12–16px horizontal (depends on text length)
+- **Background**: Accent color (#2563EB light, #3B82F6 dark) OR gray secondary
+- **Text**: White/light on accent, dark primary on secondary
+- **Icons**: Monochrome, 16–20px, leading or standalone
+- **States**:
+  - Default: accent background
+  - Hover: 10% lighter/darker (color lighten/darken by 10%)
+  - Active/Pressed: 20% darker/lighter
+  - Disabled: 50% opacity, cursor not-allowed
+
+### Icons
+- **Style**: Flat, monochrome, outline-based (not filled)
+- **Size**: 16px (inline), 20px (controls), 24px (header actions)
+- **Color**: Text primary or accent (context-dependent)
+- **Approach**: Stroke-based SVG, not bitmap
+
+### Inputs & Controls
+- **Input fields**: Border 1px --color-border, border-radius 8px, padding 8px 12px
+- **Selects/Dropdowns**: Pill-shaped (border-radius 8px minimum)
+- **Sliders**: Minimal (thin track, rounded thumb)
+- **Checkboxes/Radios**: Custom (not native HTML), rounded corners, accent when checked
+
+### Waveform Viewer
+- **Size**: Compact but detailed (height 80–120px, or user-resizable)
+- **Background**: Dark (--color-bg dark theme, or --color-border light theme for contrast)
+- **Waveform color**: Text primary color (monochrome)
+- **Selection region**: Accent color overlay, 20% opacity, drag-handle borders visible
+- **Grid/labels**: Optional timeline labels, font-size 11px, --color-text-secondary
+
+### Spectrum Viewer (Plotly)
+- **Background**: Dark (--color-bg in dark mode, #f0f0f0 in light mode for plot visibility)
+- **Grid**: Subtle/faint (--color-border, opacity 30–40%)
+- **Trace A**: --color-spectrum-a (blue)
+- **Trace B**: --color-spectrum-b (orange)
+- **Axes**: --color-text-secondary, font-size 12px
+- **Animation**: Smooth updates during IR calculation (no jarring redraws)
+
+### Level Meter (VU-style)
+- **Background**: Circular arc, --color-border outline
+- **Track**: --color-border (unfilled arc)
+- **Needle**: --color-accent (blue) or --color-success (green) if "safe" level
+- **dB scale**: Labeled arc (-60, -40, -20, 0dB typical)
+- **Real-time update**: Smooth needle motion (no frame stuttering)
+
+### Recording Panel
+- **Record button**: Pill-shaped, red/orange accent (or --color-spectrum-b orange)
+- **Pulsing indicator**: Subtle pulse (opacity 1 → 0.7 → 1, 1s cycle) when recording
+- **Level meter**: Inline (VU-style or bar)
+- **Duration display**: Monospace 12px, right-aligned
+- **Threshold slider**: Compact, below level display
+
+### Playback Panel
+- **Play button**: Pill-shaped, accent color, inline (not hero)
+- **Progress bar**: Thin (4–6px), --color-border track, --color-accent fill
+- **Volume slider**: Inline, compact (width 80–120px)
+- **Time display**: Monospace 12px, --color-text-secondary
+
+### IR Waveform Display
+- **Size**: Medium, detailed (height 150–200px, or resizable)
+- **Background**: Dark
+- **Waveform**: --color-accent (blue) or --color-text-primary (monochrome)
+- **Grid**: Visible, subtle (--color-border)
+- **Zero-line**: Emphasized (--color-text-secondary, dashed or solid)
+- **Sample markers**: Optional, small labels at major ticks
+- **Metadata**: Below plot (length samples, peak amplitude, energy dB)
+
+### Debug Panel
+- **Position**: Right drawer or bottom panel, hidden by default
+- **Width**: 350–400px (drawer) or ~50% height (bottom)
+- **Toggle**: Button (gear icon) or keyboard (Ctrl+Shift+D)
+- **Content**:
+  - Filter buttons: "All" | "Debug" | "Info" | "Warn" | "Error"
+  - Search input (small, --color-border)
+  - Log feed: Scrollable, monospace 11px, row height 24px
+  - Timestamp | Level | Source | Message | (expand for data)
+  - Footer buttons: Clear | Export (JSON download)
+- **Animation**: Slide-in from right/bottom, smooth
+
+---
+
+## Data Visualization
+
+### Spectrum Plots
+- **Type**: Plotly.js line/area charts
+- **Axes**: Frequency (Hz, log scale optional), Magnitude (dB, linear)
+- **Traces**: Spectrum A (blue) + Spectrum B (orange)
+- **Background**: Dark (prevents eye strain, matches DAW aesthetic)
+- **Grid**: Faint (subtle/faint option selected), major ticks labeled
+- **Hover tooltip**: Frequency, Magnitude (dB), source (A/B)
+- **Animation**: Smooth redraw when selections change or IR is computed
+
+### Waveform Display (wavesurfer.js)
+- **Background**: Slightly lighter than spectrum (contrast from --color-bg)
+- **Waveform**: Monochrome (--color-text-primary)
+- **Selection region**: Accent color (--color-accent), 20% opacity fill
+- **Selection handles**: Draggable, cursor pointer, visible outline
+- **Playback head**: Accent color, thin line
+- **Interaction**: Drag region borders, click-drag to select, scroll to zoom, arrow keys to nudge
+
+### IR Time-Domain Waveform
+- **Background**: Dark
+- **Waveform**: --color-accent (blue) or --color-text-primary (monochrome)
+- **Grid**: Visible, --color-border
+- **Zero-line**: Emphasized (dashed, --color-text-secondary)
+- **Axis labels**: Sample index, amplitude
+- **Metadata**: Text below (length, peak, energy, phase info if relevant)
+
+---
+
+## Motion & Animation
+
+- **Spectrum during IR calc**: Subtle shimmer or gradual update (not jarring)
+- **Recording pulse**: Subtle opacity pulse (1 → 0.7, 1s cycle) on record button
+- **Playback progress**: Smooth line movement (no stuttering)
+- **Panel open/close**: 200ms slide-in/out (drawer, debug panel)
+- **Button hover**: Instant color shift (no transition — feels snappy)
+- **Respect prefers-reduced-motion**: Disable animations if user has set this preference
+
+---
+
+## Accessibility & Performance
+
+- **Focus states**: Visible outline (--color-accent, 2px) on all interactive elements
+- **Keyboard nav**: Tab order logical (top-left → bottom-right), Shift+Tab reverse
+- **Contrast**: WCAG AA minimum (21:9 ratio for text)
+- **Icons + labels**: Where space allows, label buttons; bare icons require title/aria-label
+- **Reduced motion**: Skip animations if `prefers-reduced-motion: reduce`
+- **Font sizes**: No smaller than 11px (12px preferred for body)
+
+---
+
 ## Terminology
 
 - **WAV 1 (File A)**: Target spectrum — tone match destination (desired)
