@@ -47,8 +47,18 @@ onMounted(async () => {
 });
 
 watch(
-  () => [store.spectra.A, store.spectra.B],
+  () => store.spectra.A,
   async () => {
+    logger.debug('SpectrumViewer', 'Spectrum A changed');
+    await updatePlot();
+  },
+  { deep: true }
+);
+
+watch(
+  () => store.spectra.B,
+  async () => {
+    logger.debug('SpectrumViewer', 'Spectrum B changed');
     await updatePlot();
   },
   { deep: true }
@@ -59,13 +69,17 @@ watch([showA, showB], async () => {
 });
 
 async function updatePlot(): Promise<void> {
-  if (!plotContainer.value) return;
+  if (!plotContainer.value) {
+    logger.debug('SpectrumViewer', 'No plot container');
+    return;
+  }
 
   try {
     const Plotly = (await import('plotly.js/dist/plotly')).default;
 
     const traces: any[] = [];
     const { A, B } = store.spectra;
+    logger.debug('SpectrumViewer', 'updatePlot', { hasA: !!A, hasB: !!B, showA: showA.value, showB: showB.value });
 
     if (showA.value && A) {
       traces.push({
@@ -134,6 +148,8 @@ async function updatePlot(): Promise<void> {
       displayModeBar: false,
     };
 
+    logger.debug('SpectrumViewer', 'Built traces', { count: traces.length, plotInitialized });
+
     if (traces.length === 0) {
       if (plotInitialized && plotContainer.value) {
         Plotly.purge(plotContainer.value);
@@ -143,10 +159,10 @@ async function updatePlot(): Promise<void> {
     } else if (!plotInitialized && plotContainer.value) {
       Plotly.newPlot(plotContainer.value, traces, layout, config);
       plotInitialized = true;
-      logger.info('SpectrumViewer', 'Plot initialized');
+      logger.info('SpectrumViewer', 'Plot initialized', { traceCount: traces.length });
     } else if (plotInitialized && plotContainer.value) {
       Plotly.react(plotContainer.value, traces, layout, config);
-      logger.debug('SpectrumViewer', 'Plot updated');
+      logger.debug('SpectrumViewer', 'Plot updated', { traceCount: traces.length });
     }
   } catch (error) {
     logger.error('SpectrumViewer', 'Plot error', { error: String(error) });

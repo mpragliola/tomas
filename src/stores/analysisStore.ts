@@ -26,6 +26,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
   const ir = ref<ImpulseResponse | null>(null);
   const convolved = ref<Float32Array>(new Float32Array());
   const playbackState = ref<'idle' | 'playing' | 'paused'>('idle');
+  const isAutoComputing = ref(false);
   const recorder = new AudioRecorder();
   let audioContext: AudioContext | null = null;
   let playbackSource: AudioBufferSourceNode | null = null;
@@ -49,6 +50,24 @@ export const useAnalysisStore = defineStore('analysis', () => {
       samples: parsed.audioData.length,
       sampleRate: parsed.header.sampleRate,
     });
+
+    // Auto-compute spectrum for this file
+    if (!isAutoComputing.value) {
+      isAutoComputing.value = true;
+      try {
+        const config: FFTConfig = {
+          fftSize: 2048,
+          window: 'hann',
+          overlap: 0.5,
+        };
+        await computeSpectra(config, slot);
+        logger.info('analysisStore', `Spectrum auto-computed for ${slot}`);
+      } catch (error) {
+        logger.error('analysisStore', `Auto-compute failed for ${slot}`, { error: String(error) });
+      } finally {
+        isAutoComputing.value = false;
+      }
+    }
   }
 
   async function recordAudio(config: RecorderConfig): Promise<void> {
@@ -94,15 +113,45 @@ export const useAnalysisStore = defineStore('analysis', () => {
     });
   }
 
-  async function computeSpectra(config: FFTConfig): Promise<void> {
-    logger.info('analysisStore', 'Computing spectra', { fftSize: config.fftSize });
+  async function computeSpectra(config: FFTConfig, slot?: 'A' | 'B'): Promise<void> {
+    logger.info('analysisStore', 'Computing spectra', { fftSize: config.fftSize, slot });
 
-    // Validate audio loaded
+    // If slot specified, compute only that file
+    if (slot) {
+      const buffer = audioBuffers.value[slot];
+      if (buffer.length === 0) {
+        throw new Error(`Audio file ${slot} not loaded`);
+      }
+
+      const signal = buffer.slice(
+        selections.value[slot].startSample,
+        selections.value[slot].endSample,
+      );
+
+      const minLength = 128;
+      if (signal.length < minLength) {
+        throw new Error(`Signal ${slot} too short (${signal.length} samples, min ${minLength})`);
+      }
+
+      try {
+        const fftResult = computeFFT(signal, config, sampleRates.value[slot]);
+        spectra.value[slot] = extractSpectrum(fftResult);
+        logger.info('analysisStore', `Spectrum ${slot} computed`, {
+          bins: spectra.value[slot]?.frequencies.length,
+          sampleRate: sampleRates.value[slot],
+        });
+      } catch (error) {
+        logger.error('analysisStore', `FFT computation failed for ${slot}`, { error: String(error) });
+        throw error;
+      }
+      return;
+    }
+
+    // Compute both files
     if (audioBuffers.value.A.length === 0 || audioBuffers.value.B.length === 0) {
       throw new Error('Both audio files must be loaded before computing spectra');
     }
 
-    // Extract selected regions
     const signalA = audioBuffers.value.A.slice(
       selections.value.A.startSample,
       selections.value.A.endSample,
@@ -112,8 +161,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
       selections.value.B.endSample,
     );
 
-    // Validate signal lengths
-    const minLength = 128; // Minimum for any FFT window
+    const minLength = 128;
     if (signalA.length < minLength) {
       throw new Error(`Signal A too short (${signalA.length} samples, min ${minLength})`);
     }
@@ -214,6 +262,16 @@ export const useAnalysisStore = defineStore('analysis', () => {
     }
   }
 
+  function clearFile(slot: 'A' | 'B'): void {
+    audioBuffers.value[slot] = new Float32Array();
+    audioHeaders.value[slot] = null;
+    sampleRates.value[slot] = 44100;
+    selections.value[slot] = { startSample: 0, endSample: 0, duration: 0 };
+    spectra.value[slot] = null;
+
+    logger.info('analysisStore', `File cleared: ${slot}`);
+  }
+
   return {
     audioBuffers,
     audioHeaders,
@@ -223,6 +281,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     ir,
     convolved,
     playbackState,
+    isAutoComputing,
     recorder,
     loadFile,
     recordAudio,
@@ -233,5 +292,6 @@ export const useAnalysisStore = defineStore('analysis', () => {
     applyIR,
     playback,
     stopPlayback,
+    clearFile,
   };
 });
