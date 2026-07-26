@@ -1,6 +1,7 @@
 # AI
 .remember
 .claude/settings.local.json
+.playwright-mcp/
 
 # IDE
 .vscode
