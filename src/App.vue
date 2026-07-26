@@ -14,8 +14,8 @@
     <main class="app-main">
       <!-- Left panel: Input & Controls -->
       <aside class="panel panel-input panel-side-bg">
-        <FileUpload @file-loaded="onFileLoaded" />
         <ControlPanel @params-changed="onParamsChanged" />
+        <FileUpload @file-loaded="onFileLoaded" />
         <RecordingPanel @recorded="onRecorded" />
         <WaveformViewer />
       </aside>

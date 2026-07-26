@@ -35,9 +35,15 @@
       {{ statusMessage }}
     </div>
 
-    <div class="divider"></div>
+    <!-- Advanced Settings Toggle -->
+    <button class="settings-toggle" @click="showAdvanced = !showAdvanced">
+      {{ showAdvanced ? '▼' : '▶' }} Advanced Settings
+    </button>
 
-    <div class="section">
+    <template v-if="showAdvanced">
+      <div class="divider"></div>
+
+      <div class="section">
       <div class="section-header">
         <label class="section-title">FFT Settings</label>
       </div>
@@ -117,6 +123,7 @@
         />
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -136,6 +143,7 @@ const maxLength = ref(1000);
 const truncationDb = ref(-40);
 const isComputing = ref(false);
 const statusMessage = ref('');
+const showAdvanced = ref(false);
 
 const emit = defineEmits<{
   'params-changed': [params: any];
@@ -379,6 +387,25 @@ async function applyIR(): Promise<void> {
 .btn-icon-text:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.settings-toggle {
+  width: 100%;
+  padding: 6px;
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 150ms;
+  text-align: left;
+}
+
+.settings-toggle:hover {
+  background-color: rgba(37, 99, 235, 0.05);
+  border-color: var(--color-accent);
 }
 
 .status-message {
