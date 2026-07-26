@@ -16,7 +16,7 @@
       <aside class="panel panel-input panel-side-bg">
         <ControlPanel @params-changed="onParamsChanged" />
         <FileUpload @file-loaded="onFileLoaded" @record="onRecord" />
-        <RecordingPanel @recorded="onRecorded" />
+        <RecordingPanel ref="recordingPanel" @recorded="onRecorded" />
       </aside>
 
       <!-- Center: Spectrum visualization -->
@@ -54,6 +54,7 @@ import { useAnalysisStore } from './stores/analysisStore';
 const store = useAnalysisStore();
 const showDebug = ref(false);
 const debugAvailable = ref(true);
+const recordingPanel = ref<InstanceType<typeof RecordingPanel>>();
 
 onMounted(() => {
   logger.info('App', 'Application mounted');
@@ -75,8 +76,11 @@ function onFileLoaded(e: any): void {
   logger.info('App', 'File loaded event received', { slot: e.slot });
 }
 
-function onRecord(e: any): void {
-  logger.info('App', 'Record button clicked', { slot: e.slot });
+async function onRecord(e: any): Promise<void> {
+  if (e.slot === 'A') {
+    logger.info('App', 'Record button clicked', { slot: e.slot });
+    await recordingPanel.value?.startRecording();
+  }
 }
 
 function onRecorded(e: any): void {

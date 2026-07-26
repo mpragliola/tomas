@@ -5,6 +5,16 @@
         <label class="section-title">Recording</label>
       </div>
 
+      <!-- Stop Recording Button (only when recording) -->
+      <button
+        v-if="isRecording"
+        type="button"
+        class="btn-stop"
+        @click="stopRecording"
+      >
+        ⏹ Stop
+      </button>
+
       <!-- Level Meter -->
       <div class="level-meter">
         <div class="level-label">Level</div>
@@ -199,6 +209,11 @@ function updateAutoTrigger(): void {
 function updateThreshold(): void {
   logger.debug('RecordingPanel', 'Threshold updated', { dB: thresholdDb.value });
 }
+
+defineExpose({
+  startRecording,
+  stopRecording,
+});
 </script>
 
 <style scoped>
@@ -262,6 +277,31 @@ function updateThreshold(): void {
   50% {
     opacity: 0.7;
   }
+}
+
+.btn-stop {
+  background-color: #FF3B30;
+  color: white;
+  border: none;
+  padding: 10px;
+  border-radius: var(--radius-lg);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 150ms;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.btn-stop:hover {
+  filter: brightness(1.1);
+}
+
+.btn-stop:active {
+  filter: brightness(0.95);
 }
 
 .level-meter {
