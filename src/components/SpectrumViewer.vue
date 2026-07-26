@@ -14,21 +14,24 @@
       </div>
     </div>
 
-    <div v-if="store.isAutoComputing" class="loading-state">
-      <div class="spinner"></div>
-      <p>Computing spectra...</p>
-    </div>
+    <!-- Container stays mounted so the ref is always valid; states overlay it -->
+    <div class="plot-area">
+      <div ref="plotContainer" class="plot-container"></div>
 
-    <div v-else-if="!store.spectra.A && !store.spectra.B" class="empty-state">
-      <p>Compute spectra to display</p>
-    </div>
+      <div v-if="store.isAutoComputing" class="overlay loading-state">
+        <div class="spinner"></div>
+        <p>Computing spectra...</p>
+      </div>
 
-    <div v-else ref="plotContainer" class="plot-container"></div>
+      <div v-else-if="!store.spectra.A && !store.spectra.B" class="overlay empty-state">
+        <p>Compute spectra to display</p>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, nextTick } from 'vue';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { logger } from '../services/logging';
 
@@ -47,18 +50,8 @@ onMounted(async () => {
 });
 
 watch(
-  () => store.spectra.A,
+  () => [store.spectra.A, store.spectra.B],
   async () => {
-    logger.debug('SpectrumViewer', 'Spectrum A changed');
-    await updatePlot();
-  },
-  { deep: true }
-);
-
-watch(
-  () => store.spectra.B,
-  async () => {
-    logger.debug('SpectrumViewer', 'Spectrum B changed');
     await updatePlot();
   },
   { deep: true }
@@ -69,8 +62,11 @@ watch([showA, showB], async () => {
 });
 
 async function updatePlot(): Promise<void> {
+  // Let any pending render flush before touching the container
+  await nextTick();
+
   if (!plotContainer.value) {
-    logger.debug('SpectrumViewer', 'No plot container');
+    plotInitialized = false;
     return;
   }
 
@@ -79,7 +75,6 @@ async function updatePlot(): Promise<void> {
 
     const traces: any[] = [];
     const { A, B } = store.spectra;
-    logger.debug('SpectrumViewer', 'updatePlot', { hasA: !!A, hasB: !!B, showA: showA.value, showB: showB.value });
 
     if (showA.value && A) {
       traces.push({
@@ -148,21 +143,19 @@ async function updatePlot(): Promise<void> {
       displayModeBar: false,
     };
 
-    logger.debug('SpectrumViewer', 'Built traces', { count: traces.length, plotInitialized });
-
     if (traces.length === 0) {
-      if (plotInitialized && plotContainer.value) {
+      if (plotInitialized) {
         Plotly.purge(plotContainer.value);
         plotInitialized = false;
         logger.debug('SpectrumViewer', 'Plot cleared');
       }
-    } else if (!plotInitialized && plotContainer.value) {
+    } else if (!plotInitialized) {
       Plotly.newPlot(plotContainer.value, traces, layout, config);
       plotInitialized = true;
-      logger.info('SpectrumViewer', 'Plot initialized', { traceCount: traces.length });
-    } else if (plotInitialized && plotContainer.value) {
+      logger.info('SpectrumViewer', 'Plot initialized');
+    } else {
       Plotly.react(plotContainer.value, traces, layout, config);
-      logger.debug('SpectrumViewer', 'Plot updated', { traceCount: traces.length });
+      logger.debug('SpectrumViewer', 'Plot updated');
     }
   } catch (error) {
     logger.error('SpectrumViewer', 'Plot error', { error: String(error) });
@@ -221,11 +214,24 @@ async function updatePlot(): Promise<void> {
   color: white;
 }
 
+.plot-area {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background-color: var(--color-bg);
+  border-radius: var(--radius-md);
+}
+
 .empty-state {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex: 1;
   color: var(--color-text-secondary);
   font-size: 14px;
 }
@@ -235,7 +241,6 @@ async function updatePlot(): Promise<void> {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  flex: 1;
   color: var(--color-text-secondary);
   gap: 12px;
 }
