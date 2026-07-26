@@ -2,23 +2,8 @@
   <div class="recording-panel">
     <div class="section">
       <div class="section-header">
-        <label class="section-title">Record Audio</label>
+        <label class="section-title">Recording</label>
       </div>
-
-      <!-- Record Button -->
-      <button
-        :class="[
-          'btn-record',
-          {
-            recording: isRecording,
-            'pulse': isRecording,
-          },
-        ]"
-        @click="toggleRecording"
-      >
-        <span v-if="!isRecording">● Record</span>
-        <span v-else>⏹ Stop</span>
-      </button>
 
       <!-- Level Meter -->
       <div class="level-meter">

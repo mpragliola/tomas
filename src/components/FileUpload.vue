@@ -28,9 +28,7 @@
 
         <!-- Loaded state with waveform -->
         <div v-else-if="fileA" class="loaded-state">
-          <div class="waveform-container">
-            <div ref="containerA" class="waveform"></div>
-          </div>
+          <div ref="containerA" class="waveform-container"></div>
           <div class="waveform-footer">
             <span class="duration">{{ formatDuration('A') }}</span>
             <button type="button" class="cancel-btn" @click.stop="clearFile('A')">✕</button>
@@ -81,9 +79,7 @@
 
         <!-- Loaded state with waveform -->
         <div v-else-if="fileB" class="loaded-state">
-          <div class="waveform-container">
-            <div ref="containerB" class="waveform"></div>
-          </div>
+          <div ref="containerB" class="waveform-container"></div>
           <div class="waveform-footer">
             <span class="duration">{{ formatDuration('B') }}</span>
             <button type="button" class="cancel-btn" @click.stop="clearFile('B')">✕</button>
@@ -444,13 +440,11 @@ function emitRecord(slot: 'A' | 'B'): void {
 
 .waveform-container {
   flex: 1;
-  min-height: 80px;
-  display: flex;
-}
-
-.waveform {
-  width: 100%;
-  height: 100%;
+  min-height: 100px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: rgba(37, 99, 235, 0.02);
+  overflow: hidden;
 }
 
 .waveform-footer {
