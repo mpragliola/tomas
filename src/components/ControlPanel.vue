@@ -142,9 +142,10 @@ async function computeSpectra(): Promise<void> {
   }
 
   isComputing.value = true;
-  statusMessage.value = 'Computing spectra...';
+  statusMessage.value = 'Computing spectra... (FFT may take a moment)';
 
   try {
+    const startTime = Date.now();
     const config: FFTConfig = {
       fftSize: fftSize.value,
       window: window.value,
@@ -152,16 +153,17 @@ async function computeSpectra(): Promise<void> {
     };
 
     await store.computeSpectra(config);
-    statusMessage.value = 'Spectra computed ✓';
-    logger.info('ControlPanel', 'Spectra computed');
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+    statusMessage.value = `Spectra computed in ${elapsed}s ✓`;
+    logger.info('ControlPanel', 'Spectra computed', { elapsedSeconds: elapsed });
     emit('params-changed', { action: 'spectra-computed' });
 
     setTimeout(() => {
       statusMessage.value = '';
-    }, 2000);
+    }, 3000);
   } catch (error) {
     logger.error('ControlPanel', 'Failed to compute spectra', { error: String(error) });
-    statusMessage.value = 'Error computing spectra';
+    statusMessage.value = `Error: ${error instanceof Error ? error.message : String(error)}`;
   } finally {
     isComputing.value = false;
   }

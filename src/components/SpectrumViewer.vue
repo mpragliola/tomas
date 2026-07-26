@@ -33,20 +33,24 @@ const showA = ref(true);
 const showB = ref(true);
 let plotInitialized = false;
 
-onMounted(() => {
+onMounted(async () => {
   logger.info('SpectrumViewer', 'Mounted');
+  // Initial plot if spectra exist
+  if (store.spectra.A || store.spectra.B) {
+    await updatePlot();
+  }
 });
 
 watch(
   () => [store.spectra.A, store.spectra.B],
-  () => {
-    updatePlot();
+  async () => {
+    await updatePlot();
   },
   { deep: true }
 );
 
-watch([showA, showB], () => {
-  updatePlot();
+watch([showA, showB], async () => {
+  await updatePlot();
 });
 
 async function updatePlot(): Promise<void> {
