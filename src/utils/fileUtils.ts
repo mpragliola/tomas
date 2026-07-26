@@ -1,15 +1,38 @@
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  throw new Error('Not implemented');
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 }
 
 export function base64ToArrayBuffer(base64: string): ArrayBuffer {
-  throw new Error('Not implemented');
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
 }
 
 export function downloadFile(data: ArrayBuffer, filename: string, mimeType: string): void {
-  throw new Error('Not implemented');
+  const blob = new Blob([data], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 export async function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
-  throw new Error('Not implemented');
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(file);
+  });
 }
