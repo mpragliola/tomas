@@ -3,11 +3,10 @@
     <div class="section">
       <div class="section-header">
         <label class="section-title">Wave 1 (Target)</label>
-        <span v-if="fileA" class="value" style="font-size: 10px">✓</span>
       </div>
       <div
         class="upload-area"
-        :class="{ active: dragActiveA }"
+        :class="{ active: dragActiveA, loaded: fileA }"
         @dragover.prevent="dragActiveA = true"
         @dragenter.prevent="dragActiveA = true"
         @dragleave="dragActiveA = false"
@@ -20,11 +19,28 @@
           @change="handleFileSelect($event, 'A')"
           style="display: none"
         />
-        <button type="button" class="upload-button" @click="inputA?.click()">
-          📁 Choose File
-        </button>
-        <p class="upload-hint">or drag WAV here</p>
-        <p v-if="fileA" class="file-name">{{ fileA.name }}</p>
+
+        <!-- Loading state -->
+        <div v-if="loadingA" class="loading-state">
+          <div class="spinner"></div>
+          <p class="loading-text">Loading...</p>
+        </div>
+
+        <!-- Loaded state -->
+        <div v-else-if="fileA" class="loaded-state">
+          <p class="file-name">{{ fileA.name }}</p>
+          <button type="button" class="cancel-button" @click.stop="clearFile('A')">
+            ✕ Clear
+          </button>
+        </div>
+
+        <!-- Empty state -->
+        <div v-else class="empty-state">
+          <button type="button" class="upload-button" @click="inputA?.click()">
+            📁 Choose File
+          </button>
+          <p class="upload-hint">or drag WAV here</p>
+        </div>
       </div>
     </div>
 
@@ -33,11 +49,10 @@
     <div class="section">
       <div class="section-header">
         <label class="section-title">Wave 2 (Reference)</label>
-        <span v-if="fileB" class="value" style="font-size: 10px">✓</span>
       </div>
       <div
         class="upload-area"
-        :class="{ active: dragActiveB }"
+        :class="{ active: dragActiveB, loaded: fileB }"
         @dragover.prevent="dragActiveB = true"
         @dragenter.prevent="dragActiveB = true"
         @dragleave="dragActiveB = false"
@@ -50,11 +65,28 @@
           @change="handleFileSelect($event, 'B')"
           style="display: none"
         />
-        <button type="button" class="upload-button" @click="inputB?.click()">
-          📁 Choose File
-        </button>
-        <p class="upload-hint">or drag WAV here</p>
-        <p v-if="fileB" class="file-name">{{ fileB.name }}</p>
+
+        <!-- Loading state -->
+        <div v-if="loadingB" class="loading-state">
+          <div class="spinner"></div>
+          <p class="loading-text">Loading...</p>
+        </div>
+
+        <!-- Loaded state -->
+        <div v-else-if="fileB" class="loaded-state">
+          <p class="file-name">{{ fileB.name }}</p>
+          <button type="button" class="cancel-button" @click.stop="clearFile('B')">
+            ✕ Clear
+          </button>
+        </div>
+
+        <!-- Empty state -->
+        <div v-else class="empty-state">
+          <button type="button" class="upload-button" @click="inputB?.click()">
+            📁 Choose File
+          </button>
+          <p class="upload-hint">or drag WAV here</p>
+        </div>
       </div>
     </div>
   </div>
@@ -72,6 +104,8 @@ const fileA = ref<File | null>(null);
 const fileB = ref<File | null>(null);
 const dragActiveA = ref(false);
 const dragActiveB = ref(false);
+const loadingA = ref(false);
+const loadingB = ref(false);
 
 const emit = defineEmits<{
   'file-loaded': [{ slot: 'A' | 'B'; file: File }];
@@ -111,21 +145,44 @@ async function loadFile(file: File, slot: 'A' | 'B'): Promise<void> {
     return;
   }
 
+  const isSlotA = slot === 'A';
   try {
-    if (slot === 'A') {
+    if (isSlotA) {
+      loadingA.value = true;
+    } else {
+      loadingB.value = true;
+    }
+
+    await store.loadFile(file, slot);
+
+    if (isSlotA) {
       fileA.value = file;
     } else {
       fileB.value = file;
     }
 
-    await store.loadFile(file, slot);
     emit('file-loaded', { slot, file });
     logger.info('FileUpload', `File loaded: ${slot}`, { fileName: file.name });
   } catch (error) {
     logger.error('FileUpload', `Failed to load file ${slot}`, { error: String(error) });
-    if (slot === 'A') fileA.value = null;
-    if (slot === 'B') fileB.value = null;
+  } finally {
+    if (isSlotA) {
+      loadingA.value = false;
+    } else {
+      loadingB.value = false;
+    }
   }
+}
+
+function clearFile(slot: 'A' | 'B'): void {
+  if (slot === 'A') {
+    fileA.value = null;
+    if (inputA.value) inputA.value.value = '';
+  } else {
+    fileB.value = null;
+    if (inputB.value) inputB.value.value = '';
+  }
+  logger.info('FileUpload', `File cleared: ${slot}`);
 }
 </script>
 
@@ -164,7 +221,7 @@ async function loadFile(file: File, slot: 'A' | 'B'): Promise<void> {
   cursor: pointer;
 }
 
-.upload-area:hover {
+.upload-area:hover:not(.loaded) {
   border-color: var(--color-accent);
   background-color: rgba(37, 99, 235, 0.02);
 }
@@ -172,6 +229,12 @@ async function loadFile(file: File, slot: 'A' | 'B'): Promise<void> {
 .upload-area.active {
   border-color: var(--color-accent);
   background-color: rgba(37, 99, 235, 0.05);
+}
+
+.upload-area.loaded {
+  border-color: var(--color-accent);
+  background-color: rgba(37, 99, 235, 0.03);
+  cursor: default;
 }
 
 .upload-button {
@@ -216,5 +279,67 @@ async function loadFile(file: File, slot: 'A' | 'B'): Promise<void> {
   color: var(--color-success);
   font-size: 12px;
   font-weight: 600;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(37, 99, 235, 0.2);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 600ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  margin: 0;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.loaded-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.cancel-button {
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 150ms;
+}
+
+.cancel-button:hover {
+  border-color: #FF3B30;
+  color: #FF3B30;
+  background-color: rgba(255, 59, 48, 0.05);
 }
 </style>

@@ -83,26 +83,33 @@
 
     <div class="divider"></div>
 
-    <!-- Compute Buttons -->
-    <div class="section">
-      <button @click="computeSpectra" class="btn btn-primary" :disabled="isComputing">
-        {{ isComputing ? '⏳ Computing...' : '▶ Compute Spectrum' }}
+    <!-- Compute Buttons - Horizontal -->
+    <div class="compute-buttons">
+      <button
+        @click="computeSpectra"
+        class="btn-icon-text"
+        :disabled="isComputing"
+        title="Compute Spectrum"
+      >
+        📊
       </button>
 
       <button
         @click="computeIR"
-        class="btn btn-primary"
+        class="btn-icon-text"
         :disabled="isComputing || !store.spectra.A"
+        title="Derive IR"
       >
-        {{ isComputing ? '⏳ Computing...' : '▶ Derive IR' }}
+        🔧
       </button>
 
       <button
         @click="applyIR"
-        class="btn btn-secondary"
+        class="btn-icon-text"
         :disabled="isComputing || !store.ir"
+        title="Apply IR"
       >
-        ✓ Apply IR
+        ✓
       </button>
     </div>
 
@@ -235,7 +242,8 @@ async function applyIR(): Promise<void> {
 .control-panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
+  overflow: auto;
 }
 
 .section {
@@ -342,16 +350,46 @@ async function applyIR(): Promise<void> {
   background-color: var(--color-border);
 }
 
-.status-message {
+.compute-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-icon-text {
+  flex: 1;
   padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-accent);
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 150ms;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon-text:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.btn-icon-text:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.status-message {
+  padding: 6px 8px;
   border-radius: var(--radius-sm);
   background-color: rgba(37, 99, 235, 0.1);
   border: 1px solid var(--color-accent);
   color: var(--color-accent);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   text-align: center;
   animation: slideIn 200ms ease-out;
+  margin-top: 4px;
 }
 
 @keyframes slideIn {

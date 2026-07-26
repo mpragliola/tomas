@@ -1,0 +1,92 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - heading "Spectrum Matcher" [level=1] [ref=e5]
+    - button "⚙" [ref=e7] [cursor=pointer]
+  - main [ref=e8]:
+    - complementary [ref=e9]:
+      - generic [ref=e102]:
+        - generic [ref=e103]:
+          - generic [ref=e104]: Wave 1 (Target)
+          - generic [ref=e107] [cursor=pointer]:
+            - button "📁 Choose File" [ref=e108]
+            - paragraph [ref=e109]: or drag WAV here
+        - generic [ref=e111]:
+          - generic [ref=e112]: Wave 2 (Reference)
+          - generic [ref=e115] [cursor=pointer]:
+            - button "📁 Choose File" [ref=e116]
+            - paragraph [ref=e117]: or drag WAV here
+      - generic [ref=e119]:
+        - generic [ref=e120]: Record Audio
+        - button "● Record" [ref=e122] [cursor=pointer]
+        - generic [ref=e124]:
+          - generic [ref=e125]: Level
+          - generic [ref=e126]:
+            - img [ref=e127]:
+              - generic [ref=e132]: "-60"
+              - generic [ref=e133]: "0"
+            - generic [ref=e134]: "-60.0dB"
+        - generic [ref=e135]:
+          - generic [ref=e136]: 0.0s
+          - generic [ref=e137]: / 20.0s
+        - generic [ref=e141] [cursor=pointer]:
+          - checkbox "Auto-trigger" [ref=e142]
+          - text: Auto-trigger
+      - paragraph [ref=e49]: Load audio files to display waveforms
+      - generic:
+        - generic [ref=e50]:
+          - generic [ref=e51]: FFT Settings
+          - generic [ref=e53]:
+            - generic [ref=e54]: FFT Size
+            - combobox [ref=e55]:
+              - option "512"
+              - option "1024"
+              - option "2048" [selected]
+              - option "4096"
+              - option "8192"
+              - option "16384"
+          - generic [ref=e56]:
+            - generic [ref=e57]: Window
+            - combobox [ref=e58]:
+              - option "Hann" [selected]
+              - option "Hamming"
+              - option "Rectangular"
+        - generic [ref=e59]:
+          - generic [ref=e60]: IR Derivation
+          - generic [ref=e62]:
+            - generic [ref=e63]: Method
+            - combobox [ref=e64]:
+              - option "Difference (A - B)" [selected]
+              - option "Ratio (A / B)"
+          - generic [ref=e65]:
+            - generic [ref=e66]: Phase
+            - combobox [ref=e67]:
+              - option "Preserve B" [selected]
+              - option "Minimum Phase"
+          - generic [ref=e68]:
+            - generic [ref=e69]: Max IR Length (ms)
+            - spinbutton [ref=e70]: "1000"
+          - generic [ref=e71]:
+            - generic [ref=e72]: Truncation (dB)
+            - spinbutton [ref=e73]: "-40"
+        - generic [ref=e74]:
+          - button "📊" [ref=e75] [cursor=pointer]
+          - button "🔧" [disabled] [ref=e76]
+          - button "✓" [disabled] [ref=e77]
+    - generic [ref=e79]:
+      - generic [ref=e80]:
+        - heading "Frequency Spectrum" [level=3] [ref=e81]
+        - generic [ref=e82]:
+          - generic [ref=e83] [cursor=pointer]:
+            - checkbox "A" [checked] [ref=e84]
+            - generic [ref=e85]: A
+          - generic [ref=e86] [cursor=pointer]:
+            - checkbox "B" [checked] [ref=e87]
+            - generic [ref=e88]: B
+      - paragraph [ref=e90]: Compute spectra to display
+    - complementary [ref=e91]:
+      - generic [ref=e92]:
+        - generic [ref=e93]: Impulse Response
+        - paragraph [ref=e96]: Derive IR to display
+      - generic [ref=e97]:
+        - generic [ref=e98]: Playback
+        - paragraph [ref=e101]: Apply IR to enable playback

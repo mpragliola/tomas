@@ -1,0 +1,11 @@
+[     362ms] [LOG] [2026-07-26T11:45:48.285Z] [INFO] [WaveformViewer] Mounted  @ http://localhost:5174/src/services/logging.ts:50
+[     363ms] [LOG] [2026-07-26T11:45:48.295Z] [INFO] [SpectrumViewer] Mounted  @ http://localhost:5174/src/services/logging.ts:50
+[     363ms] [LOG] [2026-07-26T11:45:48.295Z] [INFO] [ImpulseResponseDisplay] Mounted  @ http://localhost:5174/src/services/logging.ts:50
+[     364ms] [LOG] [2026-07-26T11:45:48.295Z] [INFO] [App] Application mounted  @ http://localhost:5174/src/services/logging.ts:50
+[     527ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5174/favicon.ico:0
+[   56076ms] [WARNING] [Vue warn]: Property "loadingA" was accessed during render but is not defined on instance. 
+  at <FileUpload onFileLoaded=fn<onFileLoaded> > 
+  at <App> @ http://localhost:5174/node_modules/.vite/deps/chunk-LOENNIKQ.js?v=d2ce3270:2229
+[   56076ms] [WARNING] [Vue warn]: Property "loadingB" was accessed during render but is not defined on instance. 
+  at <FileUpload onFileLoaded=fn<onFileLoaded> > 
+  at <App> @ http://localhost:5174/node_modules/.vite/deps/chunk-LOENNIKQ.js?v=d2ce3270:2229

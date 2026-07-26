@@ -13,7 +13,7 @@
     <!-- Main content -->
     <main class="app-main">
       <!-- Left panel: Input & Controls -->
-      <aside class="panel panel-input">
+      <aside class="panel panel-input panel-side-bg">
         <FileUpload @file-loaded="onFileLoaded" />
         <RecordingPanel @recorded="onRecorded" />
         <WaveformViewer />
@@ -26,7 +26,7 @@
       </section>
 
       <!-- Right panel: IR & Playback -->
-      <aside class="panel panel-output">
+      <aside class="panel panel-output panel-side-bg">
         <ImpulseResponseDisplay @ir-derived="onIRDerived" />
         <PlaybackPanel />
       </aside>

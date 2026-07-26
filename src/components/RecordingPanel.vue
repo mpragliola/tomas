@@ -24,24 +24,53 @@
       <div class="level-meter">
         <div class="level-label">Level</div>
         <div class="level-display">
-          <svg class="vu-meter" viewBox="0 0 100 60" preserveAspectRatio="none">
-            <!-- Arc background -->
+          <svg class="vu-meter" viewBox="0 0 120 70" preserveAspectRatio="xMidYMid meet">
+            <!-- Background arc -->
             <path
-              d="M 20,50 A 30,30 0 0,1 80,50"
+              d="M 15,60 A 45,45 0 0,1 105,60"
               stroke="var(--color-border)"
-              stroke-width="2"
+              stroke-width="8"
               fill="none"
+              stroke-linecap="round"
+            />
+            <!-- Red clipping zone (-6 to 0dB) -->
+            <path
+              d="M 97,62 A 45,45 0 0,1 105,60"
+              stroke="#FF3B30"
+              stroke-width="8"
+              fill="none"
+              stroke-linecap="round"
+              opacity="0.3"
+            />
+            <!-- Green safe zone (-60 to -6dB) -->
+            <path
+              d="M 15,60 A 45,45 0 0,1 97,62"
+              stroke="var(--color-accent)"
+              stroke-width="8"
+              fill="none"
+              stroke-linecap="round"
+              opacity="0.15"
             />
             <!-- Arc fill (current level) -->
             <path
-              :d="getArcPath(currentLevel)"
+              :d="getArcPath(currentLevelDb)"
               stroke="var(--color-accent)"
-              stroke-width="2"
+              stroke-width="8"
               fill="none"
+              stroke-linecap="round"
+            />
+            <!-- Clipping indicator if level exceeds -6dB -->
+            <circle
+              v-if="currentLevelDb > -6"
+              cx="105"
+              cy="60"
+              r="4"
+              fill="#FF3B30"
+              opacity="0.8"
             />
             <!-- Tick marks -->
-            <text x="15" y="58" font-size="8" fill="var(--color-text-secondary)">-60</text>
-            <text x="85" y="58" font-size="8" fill="var(--color-text-secondary)">0</text>
+            <text x="12" y="68" font-size="9" font-weight="500" fill="var(--color-text-secondary)">-60</text>
+            <text x="100" y="68" font-size="9" font-weight="500" fill="var(--color-text-secondary)">0</text>
           </svg>
           <div class="level-value">{{ currentLevelDb.toFixed(1) }}dB</div>
         </div>
@@ -118,13 +147,17 @@ onUnmounted(() => {
 });
 
 function getArcPath(level: number): string {
+  // Clamp level to -60 to 0 dB range
   const clamped = Math.max(-60, Math.min(0, level));
+  // Normalize to 0-1 (0 = -60dB, 1 = 0dB)
   const normalized = (clamped + 60) / 60;
+  // Arc spans 180 degrees from -90 to 90 degrees
   const angle = Math.PI * normalized;
-  const x = 50 + 30 * Math.cos(Math.PI + angle);
-  const y = 50 + 30 * Math.sin(Math.PI + angle);
+  // Center at (60, 60), radius 45
+  const x = 60 + 45 * Math.cos(angle - Math.PI / 2);
+  const y = 60 + 45 * Math.sin(angle - Math.PI / 2);
   const largeArc = normalized > 0.5 ? 1 : 0;
-  return `M 20,50 A 30,30 0 0,1 ${x},${y}`;
+  return `M 15,60 A 45,45 0 ${largeArc},1 ${x},${y}`;
 }
 
 function formatTime(ms: number): string {
@@ -287,7 +320,9 @@ function updateThreshold(): void {
 
 .vu-meter {
   width: 100%;
-  height: 60px;
+  max-width: 200px;
+  height: auto;
+  aspect-ratio: 120 / 70;
 }
 
 .level-value {

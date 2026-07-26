@@ -137,6 +137,24 @@
 }
 
 /* Section & Panel Styles */
+.panel-side-bg {
+  background-color: rgba(37, 99, 235, 0.02);
+}
+
+@media (prefers-color-scheme: dark) {
+  .panel-side-bg {
+    background-color: rgba(37, 99, 235, 0.05);
+  }
+}
+
+:root[data-theme="dark"] .panel-side-bg {
+  background-color: rgba(37, 99, 235, 0.05);
+}
+
+:root[data-theme="light"] .panel-side-bg {
+  background-color: rgba(37, 99, 235, 0.02);
+}
+
 .section {
   margin-bottom: 16px;
 }
