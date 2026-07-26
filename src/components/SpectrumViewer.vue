@@ -14,7 +14,12 @@
       </div>
     </div>
 
-    <div v-if="!store.spectra.A && !store.spectra.B" class="empty-state">
+    <div v-if="store.isAutoComputing" class="loading-state">
+      <div class="spinner"></div>
+      <p>Computing spectra...</p>
+    </div>
+
+    <div v-else-if="!store.spectra.A && !store.spectra.B" class="empty-state">
       <p>Compute spectra to display</p>
     </div>
 
@@ -129,7 +134,13 @@ async function updatePlot(): Promise<void> {
       displayModeBar: false,
     };
 
-    if (!plotInitialized && plotContainer.value) {
+    if (traces.length === 0) {
+      if (plotInitialized && plotContainer.value) {
+        Plotly.purge(plotContainer.value);
+        plotInitialized = false;
+        logger.debug('SpectrumViewer', 'Plot cleared');
+      }
+    } else if (!plotInitialized && plotContainer.value) {
       Plotly.newPlot(plotContainer.value, traces, layout, config);
       plotInitialized = true;
       logger.info('SpectrumViewer', 'Plot initialized');
@@ -201,6 +212,31 @@ async function updatePlot(): Promise<void> {
   flex: 1;
   color: var(--color-text-secondary);
   font-size: 14px;
+}
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--color-text-secondary);
+  gap: 12px;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(37, 99, 235, 0.2);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 600ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .plot-container {

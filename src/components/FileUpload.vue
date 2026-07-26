@@ -215,6 +215,7 @@ function clearFile(slot: 'A' | 'B'): void {
     fileB.value = null;
     if (inputB.value) inputB.value.value = '';
   }
+  store.clearFile(slot);
   logger.info('FileUpload', `File cleared: ${slot}`);
 }
 </script>
