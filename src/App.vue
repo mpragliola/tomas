@@ -15,9 +15,8 @@
       <!-- Left panel: Input & Controls -->
       <aside class="panel panel-input panel-side-bg">
         <ControlPanel @params-changed="onParamsChanged" />
-        <FileUpload @file-loaded="onFileLoaded" />
+        <FileUpload @file-loaded="onFileLoaded" @record="onRecord" />
         <RecordingPanel @recorded="onRecorded" />
-        <WaveformViewer />
       </aside>
 
       <!-- Center: Spectrum visualization -->
@@ -44,7 +43,6 @@
 import { ref, onMounted } from 'vue';
 import FileUpload from './components/FileUpload.vue';
 import RecordingPanel from './components/RecordingPanel.vue';
-import WaveformViewer from './components/WaveformViewer.vue';
 import SpectrumViewer from './components/SpectrumViewer.vue';
 import ImpulseResponseDisplay from './components/ImpulseResponseDisplay.vue';
 import PlaybackPanel from './components/PlaybackPanel.vue';
@@ -75,6 +73,10 @@ function toggleDebug(): void {
 
 function onFileLoaded(e: any): void {
   logger.info('App', 'File loaded event received', { slot: e.slot });
+}
+
+function onRecord(e: any): void {
+  logger.info('App', 'Record button clicked', { slot: e.slot });
 }
 
 function onRecorded(e: any): void {

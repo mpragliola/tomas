@@ -26,20 +26,27 @@
           <p class="loading-text">Loading...</p>
         </div>
 
-        <!-- Loaded state -->
+        <!-- Loaded state with waveform -->
         <div v-else-if="fileA" class="loaded-state">
-          <p class="file-name">{{ fileA.name }}</p>
-          <button type="button" class="cancel-button" @click.stop="clearFile('A')">
-            ✕ Clear
-          </button>
+          <div class="waveform-container">
+            <div ref="containerA" class="waveform"></div>
+          </div>
+          <div class="waveform-footer">
+            <span class="duration">{{ formatDuration('A') }}</span>
+            <button type="button" class="cancel-btn" @click.stop="clearFile('A')">✕</button>
+          </div>
         </div>
 
-        <!-- Empty state -->
+        <!-- Empty state with load and record buttons -->
         <div v-else class="empty-state">
-          <button type="button" class="upload-button" @click="inputA?.click()">
-            📁 Choose File
-          </button>
-          <p class="upload-hint">or drag WAV here</p>
+          <div class="buttons-row">
+            <button type="button" class="action-button" @click="inputA?.click()">
+              📁 Load File
+            </button>
+            <button type="button" class="action-button record" @click="emitRecord('A')">
+              ● Record
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -72,20 +79,27 @@
           <p class="loading-text">Loading...</p>
         </div>
 
-        <!-- Loaded state -->
+        <!-- Loaded state with waveform -->
         <div v-else-if="fileB" class="loaded-state">
-          <p class="file-name">{{ fileB.name }}</p>
-          <button type="button" class="cancel-button" @click.stop="clearFile('B')">
-            ✕ Clear
-          </button>
+          <div class="waveform-container">
+            <div ref="containerB" class="waveform"></div>
+          </div>
+          <div class="waveform-footer">
+            <span class="duration">{{ formatDuration('B') }}</span>
+            <button type="button" class="cancel-btn" @click.stop="clearFile('B')">✕</button>
+          </div>
         </div>
 
-        <!-- Empty state -->
+        <!-- Empty state with load and record buttons -->
         <div v-else class="empty-state">
-          <button type="button" class="upload-button" @click="inputB?.click()">
-            📁 Choose File
-          </button>
-          <p class="upload-hint">or drag WAV here</p>
+          <div class="buttons-row">
+            <button type="button" class="action-button" @click="inputB?.click()">
+              📁 Load File
+            </button>
+            <button type="button" class="action-button record" @click="emitRecord('B')">
+              ● Record
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -98,13 +112,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { logger } from '../services/logging';
 
 const store = useAnalysisStore();
 const inputA = ref<HTMLInputElement>();
 const inputB = ref<HTMLInputElement>();
+const containerA = ref<HTMLElement>();
+const containerB = ref<HTMLElement>();
 const fileA = ref<File | null>(null);
 const fileB = ref<File | null>(null);
 const dragActiveA = ref(false);
@@ -113,9 +129,27 @@ const loadingA = ref(false);
 const loadingB = ref(false);
 const statusMessage = ref('');
 
+const waveInstances: Record<'A' | 'B', any> = { A: null, B: null };
+
+const waveColors = {
+  A: { progressColor: '#2563EB', cursorColor: '#2563EB' },
+  B: { progressColor: '#FF9500', cursorColor: '#FF9500' },
+};
+
 const emit = defineEmits<{
   'file-loaded': [{ slot: 'A' | 'B'; file: File }];
+  'record': [{ slot: 'A' | 'B' }];
 }>();
+
+onMounted(() => {
+  watch(() => store.audioBuffers.A.length, () => initWaveform('A'), { immediate: true });
+  watch(() => store.audioBuffers.B.length, () => initWaveform('B'), { immediate: true });
+});
+
+onUnmounted(() => {
+  destroyWaveform('A');
+  destroyWaveform('B');
+});
 
 async function handleFileSelect(event: Event, slot: 'A' | 'B'): Promise<void> {
   const input = event.target as HTMLInputElement;
@@ -208,6 +242,7 @@ async function loadFile(file: File, slot: 'A' | 'B'): Promise<void> {
 }
 
 function clearFile(slot: 'A' | 'B'): void {
+  destroyWaveform(slot);
   if (slot === 'A') {
     fileA.value = null;
     if (inputA.value) inputA.value.value = '';
@@ -217,6 +252,62 @@ function clearFile(slot: 'A' | 'B'): void {
   }
   store.clearFile(slot);
   logger.info('FileUpload', `File cleared: ${slot}`);
+}
+
+function destroyWaveform(slot: 'A' | 'B'): void {
+  if (!waveInstances[slot]) return;
+  try {
+    waveInstances[slot].destroy();
+  } catch (error) {
+    logger.debug('FileUpload', `Destroy ${slot} failed`, { error: String(error) });
+  }
+  waveInstances[slot] = null;
+}
+
+async function initWaveform(slot: 'A' | 'B'): Promise<void> {
+  await nextTick();
+
+  const container = slot === 'A' ? containerA.value : containerB.value;
+  if (!container) return;
+
+  destroyWaveform(slot);
+
+  const audioData = store.audioBuffers[slot];
+  if (audioData.length === 0) return;
+
+  try {
+    const WaveSurfer = (await import('wavesurfer.js')).default;
+    const sampleRate = store.sampleRates[slot];
+
+    waveInstances[slot] = WaveSurfer.create({
+      container,
+      waveColor: '#2C2C2C',
+      ...waveColors[slot],
+      height: 80,
+      normalize: true,
+      peaks: [audioData],
+      duration: audioData.length / sampleRate,
+    });
+
+    logger.info('FileUpload', `Waveform ${slot} initialized`, {
+      samples: audioData.length,
+      sampleRate,
+    });
+  } catch (error) {
+    logger.error('FileUpload', `Failed to init waveform ${slot}`, { error: String(error) });
+  }
+}
+
+function formatDuration(slot: 'A' | 'B'): string {
+  const audioData = store.audioBuffers[slot];
+  if (audioData.length === 0) return '0.00s';
+  const sampleRate = store.sampleRates[slot];
+  const durationSec = audioData.length / sampleRate;
+  return `${durationSec.toFixed(2)}s`;
+}
+
+function emitRecord(slot: 'A' | 'B'): void {
+  emit('record', { slot });
 }
 </script>
 
@@ -253,6 +344,9 @@ function clearFile(slot: 'A' | 'B'): void {
   text-align: center;
   transition: all 150ms;
   cursor: pointer;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
 }
 
 .upload-area:hover:not(.loaded) {
@@ -269,9 +363,26 @@ function clearFile(slot: 'A' | 'B'): void {
   border-color: var(--color-accent);
   background-color: rgba(37, 99, 235, 0.03);
   cursor: default;
+  padding: 8px;
 }
 
-.upload-button {
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.buttons-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  justify-content: center;
+}
+
+.action-button {
   background-color: var(--color-accent);
   color: white;
   border: none;
@@ -281,53 +392,26 @@ function clearFile(slot: 'A' | 'B'): void {
   font-weight: 500;
   cursor: pointer;
   transition: all 150ms;
-  margin-bottom: 4px;
+  flex: 1;
+  max-width: 150px;
 }
 
-.upload-button:hover {
+.action-button:hover {
   filter: brightness(1.1);
 }
 
-.upload-hint {
-  margin: 0;
-  font-size: 11px;
-  color: var(--color-text-secondary);
-}
-
-.file-name {
-  margin: 4px 0 0 0;
-  font-size: 14px;
-  color: var(--color-accent);
-  font-weight: 500;
-  word-break: break-word;
-  font-family: var(--font-body);
-}
-
-.divider {
-  height: 1px;
-  background-color: var(--color-border);
-  margin: 12px 0;
-}
-
-.value {
-  color: var(--color-success);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
+.action-button.record {
+  background-color: #FF3B30;
 }
 
 .loading-state {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 12px 0;
+  flex: 1;
 }
 
 .spinner {
@@ -354,27 +438,61 @@ function clearFile(slot: 'A' | 'B'): void {
 .loaded-state {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 0;
+  gap: 6px;
+  flex: 1;
 }
 
-.cancel-button {
+.waveform-container {
+  flex: 1;
+  min-height: 80px;
+  display: flex;
+}
+
+.waveform {
+  width: 100%;
+  height: 100%;
+}
+
+.waveform-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 6px;
+  border-top: 1px solid var(--color-border);
+}
+
+.duration {
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.cancel-btn {
   background-color: transparent;
   color: var(--color-text-secondary);
   border: 1px solid var(--color-border);
-  padding: 6px 10px;
-  border-radius: var(--radius-md);
-  font-size: 11px;
-  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
   cursor: pointer;
   transition: all 150ms;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
 }
 
-.cancel-button:hover {
+.cancel-btn:hover {
   border-color: #FF3B30;
   color: #FF3B30;
   background-color: rgba(255, 59, 48, 0.05);
+}
+
+.divider {
+  height: 1px;
+  background-color: var(--color-border);
+  margin: 12px 0;
 }
 
 .status-message {
@@ -387,5 +505,9 @@ function clearFile(slot: 'A' | 'B'): void {
   font-weight: 500;
   text-align: center;
   animation: slideIn 200ms ease-out;
+}
+
+:deep(.wavesurfer) {
+  border-radius: var(--radius-sm);
 }
 </style>

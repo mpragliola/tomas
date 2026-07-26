@@ -1,7 +1,23 @@
 {
   "permissions": {
     "allow": [
-      "mcp__plugin_playwright_playwright__browser_evaluate"
+      "mcp__plugin_playwright_playwright__browser_evaluate",
+      "Bash(npx vue-tsc *)",
+      "Bash(cat > *)",
+      "Bash(cp /c/Users/panta/AppData/Local/Temp/claude/e--dev-tomas/5d79867b-c727-4427-814a-25c12b28c452/scratchpad/test-tone.wav /e/dev/tomas/.playwright-mcp/test-tone.wav && echo ok)",
+      "Bash(sed -e 's/440/880/; s/1200/3000/; s/test-tone.wav/test-tone2.wav/' /c/Users/panta/AppData/Local/Temp/claude/e--dev-tomas/5d79867b-c727-4427-814a-25c12b28c452/scratchpad/gen.mjs)",
+      "Bash(cp /c/Users/panta/AppData/Local/Temp/claude/e--dev-tomas/5d79867b-c727-4427-814a-25c12b28c452/scratchpad/test-tone2.wav /e/dev/tomas/.playwright-mcp/test-tone2.wav)",
+      "Bash(sed -i \"s|'/e/dev/tomas/.playwright-mcp/'|'E:/dev/tomas/.playwright-mcp/'|\" /tmp/chk.mjs && node /tmp/chk.mjs)",
+      "Bash(npx vitest *)",
+      "Bash(cp /c/Users/panta/AppData/Local/Temp/claude/e--dev-tomas/5d79867b-c727-4427-814a-25c12b28c452/scratchpad/test-tone.wav /e/dev/tomas/.playwright-mcp/test-tone.wav)",
+      "mcp__playwright__browser_select_option",
+      "Bash(rm -f /e/dev/tomas/.playwright-mcp/*.wav /e/dev/tomas/.playwright-mcp/tonematch-final.png /tmp/chk2.mjs /tmp/chk3.mjs)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(npx tsc *)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\panta\\AppData\\Local\\Temp\\claude\\e--dev-tomas\\5d79867b-c727-4427-814a-25c12b28c452\\scratchpad",
+      "\\tmp"
     ]
   }
 }
