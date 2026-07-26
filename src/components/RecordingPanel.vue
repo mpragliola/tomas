@@ -183,9 +183,13 @@ async function stopRecording(): Promise<void> {
 }
 
 function updateMeters(): void {
-  const state = store.recorder.getState();
-  currentLevelDb.value = 20 * Math.log10(Math.max(state.level, 1e-10));
-  recordedDuration.value = state.recordedDuration;
+  try {
+    const state = store.recorder.getState();
+    currentLevelDb.value = 20 * Math.log10(Math.max(state.level, 1e-10));
+    recordedDuration.value = state.recordedDuration;
+  } catch (e) {
+    // recorder not initialized
+  }
 }
 
 function updateAutoTrigger(): void {

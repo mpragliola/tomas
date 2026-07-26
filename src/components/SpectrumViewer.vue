@@ -24,7 +24,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
-import * as Plotly from 'plotly.js';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { logger } from '../services/logging';
 
@@ -36,9 +35,6 @@ let plotInitialized = false;
 
 onMounted(() => {
   logger.info('SpectrumViewer', 'Mounted');
-  if (store.spectra.A || store.spectra.B) {
-    updatePlot();
-  }
 });
 
 watch(
@@ -53,86 +49,92 @@ watch([showA, showB], () => {
   updatePlot();
 });
 
-function updatePlot(): void {
+async function updatePlot(): Promise<void> {
   if (!plotContainer.value) return;
 
-  const traces: any[] = [];
-  const { A, B } = store.spectra;
+  try {
+    const Plotly = (await import('plotly.js/dist/plotly')).default;
 
-  if (showA.value && A) {
-    traces.push({
-      x: Array.from(A.frequencies),
-      y: Array.from(A.magnitudesDb),
-      type: 'scatter',
-      mode: 'lines',
-      name: 'Spectrum A (Target)',
-      line: {
-        color: 'var(--color-spectrum-a)',
-        width: 1,
+    const traces: any[] = [];
+    const { A, B } = store.spectra;
+
+    if (showA.value && A) {
+      traces.push({
+        x: Array.from(A.frequencies).slice(0, 500),
+        y: Array.from(A.magnitudesDb).slice(0, 500),
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Spectrum A',
+        line: {
+          color: '#2563EB',
+          width: 1,
+        },
+        hovertemplate: '<b>A</b><br>%{x:.1f}Hz<br>%{y:.1f}dB<extra></extra>',
+      });
+    }
+
+    if (showB.value && B) {
+      traces.push({
+        x: Array.from(B.frequencies).slice(0, 500),
+        y: Array.from(B.magnitudesDb).slice(0, 500),
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Spectrum B',
+        line: {
+          color: '#FF9500',
+          width: 1,
+        },
+        hovertemplate: '<b>B</b><br>%{x:.1f}Hz<br>%{y:.1f}dB<extra></extra>',
+      });
+    }
+
+    const layout = {
+      title: '',
+      xaxis: {
+        title: 'Frequency (Hz)',
+        type: 'log',
+        zeroline: false,
+        gridcolor: '#333333',
       },
-      hovertemplate: '<b>A</b><br>%{x:.1f}Hz<br>%{y:.1f}dB<extra></extra>',
-    });
-  }
-
-  if (showB.value && B) {
-    traces.push({
-      x: Array.from(B.frequencies),
-      y: Array.from(B.magnitudesDb),
-      type: 'scatter',
-      mode: 'lines',
-      name: 'Spectrum B (Ref)',
-      line: {
-        color: 'var(--color-spectrum-b)',
-        width: 1,
+      yaxis: {
+        title: 'Magnitude (dB)',
+        zeroline: false,
+        gridcolor: '#333333',
       },
-      hovertemplate: '<b>B</b><br>%{x:.1f}Hz<br>%{y:.1f}dB<extra></extra>',
-    });
-  }
+      plot_bgcolor: 'rgba(26, 26, 26, 0.5)',
+      paper_bgcolor: '#1A1A1A',
+      font: {
+        family: 'sans-serif',
+        size: 12,
+        color: '#E5E5E5',
+      },
+      margin: { l: 40, r: 20, t: 30, b: 40 },
+      hovermode: 'x unified',
+      showlegend: true,
+      legend: {
+        x: 0.98,
+        y: 0.98,
+        bgcolor: 'rgba(0, 0, 0, 0.5)',
+        bordercolor: '#333333',
+        borderwidth: 1,
+      },
+    };
 
-  const layout = {
-    title: '',
-    xaxis: {
-      title: 'Frequency (Hz)',
-      type: 'log',
-      zeroline: false,
-      gridcolor: 'var(--color-border)',
-    },
-    yaxis: {
-      title: 'Magnitude (dB)',
-      zeroline: false,
-      gridcolor: 'var(--color-border)',
-    },
-    plot_bgcolor: 'rgba(26, 26, 26, 0.5)',
-    paper_bgcolor: 'var(--color-bg)',
-    font: {
-      family: 'var(--font-body)',
-      size: 12,
-      color: 'var(--color-text-primary)',
-    },
-    margin: { l: 40, r: 20, t: 30, b: 40 },
-    hovermode: 'x unified',
-    showlegend: true,
-    legend: {
-      x: 0.98,
-      y: 0.98,
-      bgcolor: 'rgba(0, 0, 0, 0.5)',
-      bordercolor: 'var(--color-border)',
-      borderwidth: 1,
-    },
-  };
+    const config = {
+      responsive: true,
+      displayModeBar: false,
+    };
 
-  const config = {
-    responsive: true,
-    displayModeBar: false,
-  };
-
-  if (!plotInitialized && plotContainer.value) {
-    Plotly.newPlot(plotContainer.value, traces, layout, config);
-    plotInitialized = true;
-    logger.info('SpectrumViewer', 'Plot initialized');
-  } else if (plotInitialized && plotContainer.value) {
-    Plotly.react(plotContainer.value, traces, layout, config);
-    logger.debug('SpectrumViewer', 'Plot updated');
+    if (!plotInitialized && plotContainer.value) {
+      Plotly.newPlot(plotContainer.value, traces, layout, config);
+      plotInitialized = true;
+      logger.info('SpectrumViewer', 'Plot initialized');
+    } else if (plotInitialized && plotContainer.value) {
+      Plotly.react(plotContainer.value, traces, layout, config);
+      logger.debug('SpectrumViewer', 'Plot updated');
+    }
+  } catch (error) {
+    logger.error('SpectrumViewer', 'Plot error', { error: String(error) });
   }
 }
 </script>

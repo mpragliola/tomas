@@ -66,52 +66,10 @@ let wavesurferA: any = null;
 let wavesurferB: any = null;
 
 onMounted(async () => {
-  const WaveSurfer = (await import('wavesurfer.js')).default;
-
-  if (containerA.value && store.audioBuffers.A.length > 0) {
-    wavesurferA = WaveSurfer.create({
-      container: containerA.value,
-      waveColor: 'var(--color-text-primary)',
-      progressColor: 'var(--color-accent)',
-      cursorColor: 'var(--color-accent)',
-      height: 80,
-      normalize: true,
-    });
-
-    wavesurferA.loadDecodedBuffer({
-      getLength: () => store.audioBuffers.A.length,
-      getChannel: (channel: number) => store.audioBuffers.A,
-    });
-
-    wavesurferA.on('seeking', (progress: number) => {
-      logger.debug('WaveformViewer', 'Seeking A', { progress });
-    });
-  }
-
-  if (containerB.value && store.audioBuffers.B.length > 0) {
-    wavesurferB = WaveSurfer.create({
-      container: containerB.value,
-      waveColor: 'var(--color-text-primary)',
-      progressColor: 'var(--color-spectrum-b)',
-      cursorColor: 'var(--color-spectrum-b)',
-      height: 80,
-      normalize: true,
-    });
-
-    wavesurferB.loadDecodedBuffer({
-      getLength: () => store.audioBuffers.B.length,
-      getChannel: (channel: number) => store.audioBuffers.B,
-    });
-
-    wavesurferB.on('seeking', (progress: number) => {
-      logger.debug('WaveformViewer', 'Seeking B', { progress });
-    });
-  }
-
-  logger.info('WaveformViewer', 'Waveforms initialized');
+  logger.info('WaveformViewer', 'Mounted');
 });
 
-onUnmount(() => {
+onUnmounted(() => {
   if (wavesurferA) wavesurferA.destroy();
   if (wavesurferB) wavesurferB.destroy();
 });
