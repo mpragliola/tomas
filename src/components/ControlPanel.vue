@@ -150,7 +150,7 @@ const emit = defineEmits<{
 }>();
 
 async function computeSpectra(): Promise<void> {
-  if (!store.audioBuffers.A || !store.audioBuffers.B) {
+  if (store.audioBuffers.A.length === 0 || store.audioBuffers.B.length === 0) {
     logger.warn('ControlPanel', 'Both audio files required');
     statusMessage.value = 'Load both audio files first';
     return;

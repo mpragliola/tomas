@@ -31,33 +31,15 @@
               stroke="var(--color-border)"
               stroke-width="8"
               fill="none"
-              stroke-linecap="round"
-            />
-            <!-- Red clipping zone (-6 to 0dB) -->
-            <path
-              d="M 97,62 A 45,45 0 0,1 105,60"
-              stroke="#FF3B30"
-              stroke-width="8"
-              fill="none"
-              stroke-linecap="round"
-              opacity="0.3"
-            />
-            <!-- Green safe zone (-60 to -6dB) -->
-            <path
-              d="M 15,60 A 45,45 0 0,1 97,62"
-              stroke="var(--color-accent)"
-              stroke-width="8"
-              fill="none"
-              stroke-linecap="round"
-              opacity="0.15"
+              stroke-linecap="butt"
             />
             <!-- Arc fill (current level) -->
             <path
               :d="getArcPath(currentLevelDb)"
-              stroke="var(--color-accent)"
+              :stroke="currentLevelDb > -6 ? '#FF3B30' : 'var(--color-accent)'"
               stroke-width="8"
               fill="none"
-              stroke-linecap="round"
+              stroke-linecap="butt"
             />
             <!-- Clipping indicator if level exceeds -6dB -->
             <circle
