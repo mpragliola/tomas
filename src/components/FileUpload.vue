@@ -296,11 +296,11 @@ function clearFile(slot: 'A' | 'B'): void {
 
 .file-name {
   margin: 4px 0 0 0;
-  font-size: 11px;
+  font-size: 14px;
   color: var(--color-accent);
   font-weight: 500;
   word-break: break-word;
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
 }
 
 .divider {

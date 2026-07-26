@@ -7,6 +7,7 @@ export function deriveIR(
   spectrumA: FrequencySpectrum,
   spectrumB: FrequencySpectrum,
   config: IRDerivationConfig,
+  sampleRate = 44100,
 ): ImpulseResponse {
   logger.info('irDerivation', 'Deriving IR', {
     method: config.method,
@@ -70,32 +71,34 @@ export function deriveIR(
 
   logger.info('irDerivation', 'IR derived', {
     lengthSamples: irLimited.length,
-    peak: Math.max(...Array.from(irLimited).map(Math.abs)),
     energy: computeEnergy(irLimited),
+    sampleRate,
   });
 
   return {
     coefficients: irLimited,
     length: irLimited.length,
-    sampleRate: 44100, // IR sample rate is always 44100 (could be made configurable)
+    sampleRate,
   };
 }
 
 function truncateByEnergy(ir: Float32Array, thresholdDb: number): Float32Array {
-  const energy = new Float32Array(ir.length);
   let totalEnergy = 0;
-
   for (let i = 0; i < ir.length; i++) {
-    energy[i] = ir[i] * ir[i];
-    totalEnergy += energy[i];
+    totalEnergy += ir[i] * ir[i];
   }
 
-  const thresholdLinear = Math.pow(10, thresholdDb / 10);
-  let accum = 0;
+  if (totalEnergy === 0) return ir;
 
+  // Drop the tail that holds less than `thresholdDb` of the total energy, i.e. keep
+  // accumulating until everything above that threshold is captured.
+  const tailFraction = Math.pow(10, thresholdDb / 10);
+  const keepEnergy = totalEnergy * (1 - tailFraction);
+
+  let accum = 0;
   for (let i = 0; i < ir.length; i++) {
-    accum += energy[i];
-    if (accum >= totalEnergy * thresholdLinear) {
+    accum += ir[i] * ir[i];
+    if (accum >= keepEnergy) {
       return ir.slice(0, i + 1);
     }
   }

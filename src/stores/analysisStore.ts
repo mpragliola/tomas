@@ -195,7 +195,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
       throw new Error('Spectra must be computed before deriving IR');
     }
 
-    ir.value = deriveIR(spectra.value.A, spectra.value.B, config);
+    ir.value = deriveIR(spectra.value.A, spectra.value.B, config, sampleRates.value.A);
     logger.info('analysisStore', 'IR computed', { length: ir.value.length });
   }
 

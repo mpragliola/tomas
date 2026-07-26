@@ -198,7 +198,7 @@ async function computeIR(): Promise<void> {
     const config: IRDerivationConfig = {
       method: irMethod.value,
       phase: irPhase.value,
-      maxLength: (maxLength.value / 1000) * 44100,
+      maxLength: (maxLength.value / 1000) * store.sampleRates.A,
       truncationDb: truncationDb.value,
     };
 

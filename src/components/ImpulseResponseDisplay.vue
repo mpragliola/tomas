@@ -5,11 +5,8 @@
       <span v-if="store.ir" class="value" style="font-size: 10px">✓</span>
     </div>
 
-    <div v-if="!store.ir" class="empty-state">
-      <p>Derive IR to display</p>
-    </div>
-
-    <div v-else class="ir-content">
+    <!-- Canvas stays mounted so the ref is always valid; empty state overlays it -->
+    <div class="ir-content">
       <!-- IR Waveform Canvas -->
       <div class="waveform-wrapper">
         <canvas
@@ -18,8 +15,12 @@
           :width="canvasWidth"
           :height="canvasHeight"
         ></canvas>
+        <div v-if="!store.ir" class="overlay">
+          <p>Derive IR to display</p>
+        </div>
       </div>
 
+      <template v-if="store.ir">
       <!-- Metadata -->
       <div class="metadata">
         <div class="meta-row">
@@ -49,12 +50,13 @@
           📋 JSON
         </button>
       </div>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, nextTick } from 'vue';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { logger } from '../services/logging';
 import { peak } from '../utils/mathUtils';
@@ -78,22 +80,24 @@ onMounted(() => {
 
 watch(
   () => store.ir,
-  () => {
+  async () => {
     if (store.ir) {
-      drawIR();
       peakAmplitude.value = peak(store.ir.coefficients);
       emit('ir-derived', { length: store.ir.length });
     }
+    await drawIR();
   }
 );
 
-function drawIR(): void {
-  if (!canvas.value || !store.ir) return;
+async function drawIR(): Promise<void> {
+  // Let any pending render flush before touching the canvas
+  await nextTick();
+
+  if (!canvas.value) return;
 
   const ctx = canvas.value.getContext('2d');
   if (!ctx) return;
 
-  const ir = store.ir.coefficients;
   const w = canvas.value.width;
   const h = canvas.value.height;
   const centerY = h / 2;
@@ -101,6 +105,9 @@ function drawIR(): void {
   // Clear canvas
   ctx.fillStyle = 'rgba(26, 26, 26, 0.5)';
   ctx.fillRect(0, 0, w, h);
+
+  if (!store.ir) return;
+  const ir = store.ir.coefficients;
 
   // Draw grid
   ctx.strokeStyle = 'rgba(230, 230, 230, 0.1)';
@@ -118,9 +125,9 @@ function drawIR(): void {
   ctx.lineTo(w, centerY);
   ctx.stroke();
 
-  // Draw waveform
-  const maxPeakVal = Math.max(...Array.from(ir).map(Math.abs));
-  ctx.strokeStyle = 'var(--color-accent)';
+  // Draw waveform — canvas can't resolve CSS variables, so use the literal accent colour
+  const maxPeakVal = peak(ir);
+  ctx.strokeStyle = '#2563EB';
   ctx.lineWidth = 1;
   ctx.beginPath();
 
@@ -232,11 +239,13 @@ function copyToClipboard(): void {
   letter-spacing: 0.5px;
 }
 
-.empty-state {
+.overlay {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 150px;
+  background-color: var(--color-bg);
   color: var(--color-text-secondary);
   font-size: 14px;
 }
@@ -249,6 +258,7 @@ function copyToClipboard(): void {
 }
 
 .waveform-wrapper {
+  position: relative;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   overflow: hidden;

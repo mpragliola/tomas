@@ -1,21 +1,23 @@
 <template>
   <div class="waveform-viewer">
-    <div v-if="!store.audioBuffers.A || store.audioBuffers.A.length === 0" class="empty-state">
-      <p>Load audio files to display waveforms</p>
-    </div>
-
-    <div v-else class="waveforms">
+    <!-- Containers stay mounted so the refs are always valid; states overlay them -->
+    <div class="waveforms">
       <!-- Waveform A -->
       <div class="waveform-section">
         <div class="waveform-header">
           <label class="waveform-title">Wave 1 (Target)</label>
           <div class="waveform-controls">
-            <button @click="resetZoomA" class="btn-sm btn-icon" title="Reset zoom">⟲</button>
+            <button @click="resetZoom" class="btn-sm btn-icon" title="Reset zoom">⟲</button>
           </div>
         </div>
-        <div ref="containerA" class="waveform-container"></div>
+        <div class="waveform-area">
+          <div ref="containerA" class="waveform-container"></div>
+          <div v-if="store.audioBuffers.A.length === 0" class="overlay">
+            <p>Load Wave 1 to display</p>
+          </div>
+        </div>
         <div class="waveform-footer">
-          <span class="selection-info">{{ formatSelection(store.selections.A) }}</span>
+          <span class="selection-info">{{ formatSelection('A') }}</span>
         </div>
       </div>
 
@@ -24,12 +26,17 @@
         <div class="waveform-header">
           <label class="waveform-title">Wave 2 (Reference)</label>
           <div class="waveform-controls">
-            <button @click="resetZoomB" class="btn-sm btn-icon" title="Reset zoom">⟲</button>
+            <button @click="resetZoom" class="btn-sm btn-icon" title="Reset zoom">⟲</button>
           </div>
         </div>
-        <div ref="containerB" class="waveform-container"></div>
+        <div class="waveform-area">
+          <div ref="containerB" class="waveform-container"></div>
+          <div v-if="store.audioBuffers.B.length === 0" class="overlay">
+            <p>Load Wave 2 to display</p>
+          </div>
+        </div>
         <div class="waveform-footer">
-          <span class="selection-info">{{ formatSelection(store.selections.B) }}</span>
+          <span class="selection-info">{{ formatSelection('B') }}</span>
         </div>
       </div>
 
@@ -53,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { logger } from '../services/logging';
 
@@ -62,118 +69,95 @@ const containerA = ref<HTMLElement>();
 const containerB = ref<HTMLElement>();
 const zoomLevel = ref(100);
 
-let wavesurferA: any = null;
-let wavesurferB: any = null;
+const instances: Record<'A' | 'B', any> = { A: null, B: null };
+
+const waveColors = {
+  A: { progressColor: '#2563EB', cursorColor: '#2563EB' },
+  B: { progressColor: '#FF9500', cursorColor: '#FF9500' },
+};
 
 onMounted(() => {
   logger.info('WaveformViewer', 'Mounted');
   // Initialize waveforms when store updates
-  watch(() => store.audioBuffers.A.length, () => initWaveformA(), { immediate: true });
-  watch(() => store.audioBuffers.B.length, () => initWaveformB(), { immediate: true });
+  watch(() => store.audioBuffers.A.length, () => initWaveform('A'), { immediate: true });
+  watch(() => store.audioBuffers.B.length, () => initWaveform('B'), { immediate: true });
 });
 
 onUnmounted(() => {
-  if (wavesurferA) wavesurferA.destroy();
-  if (wavesurferB) wavesurferB.destroy();
+  destroyWaveform('A');
+  destroyWaveform('B');
 });
 
-async function initWaveformA(): Promise<void> {
-  if (!containerA.value || store.audioBuffers.A.length === 0) return;
+function destroyWaveform(slot: 'A' | 'B'): void {
+  if (!instances[slot]) return;
+  try {
+    instances[slot].destroy();
+  } catch (error) {
+    logger.debug('WaveformViewer', `Destroy ${slot} failed`, { error: String(error) });
+  }
+  instances[slot] = null;
+}
+
+async function initWaveform(slot: 'A' | 'B'): Promise<void> {
+  // Let any pending render flush before touching the container
+  await nextTick();
+
+  const container = slot === 'A' ? containerA.value : containerB.value;
+  if (!container) return;
+
+  destroyWaveform(slot);
+
+  const audioData = store.audioBuffers[slot];
+  if (audioData.length === 0) return;
 
   try {
     const WaveSurfer = (await import('wavesurfer.js')).default;
+    const sampleRate = store.sampleRates[slot];
 
-    if (wavesurferA) wavesurferA.destroy();
-
-    wavesurferA = WaveSurfer.create({
-      container: containerA.value,
+    // wavesurfer 7 renders straight from pre-computed peaks — no media element needed
+    instances[slot] = WaveSurfer.create({
+      container,
       waveColor: '#2C2C2C',
-      progressColor: '#2563EB',
-      cursorColor: '#2563EB',
+      ...waveColors[slot],
       height: 80,
       normalize: true,
+      peaks: [audioData],
+      duration: audioData.length / sampleRate,
     });
 
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const audioBuffer = audioContext.createBuffer(
-      1,
-      store.audioBuffers.A.length,
-      44100
-    );
-    audioBuffer.getChannelData(0).set(store.audioBuffers.A);
-
-    wavesurferA.loadDecodedBuffer(audioBuffer);
-    logger.info('WaveformViewer', 'Waveform A initialized');
+    logger.info('WaveformViewer', `Waveform ${slot} initialized`, {
+      samples: audioData.length,
+      sampleRate,
+    });
   } catch (error) {
-    logger.error('WaveformViewer', 'Failed to init waveform A', { error: String(error) });
+    logger.error('WaveformViewer', `Failed to init waveform ${slot}`, { error: String(error) });
   }
 }
 
-async function initWaveformB(): Promise<void> {
-  if (!containerB.value || store.audioBuffers.B.length === 0) return;
-
-  try {
-    const WaveSurfer = (await import('wavesurfer.js')).default;
-
-    if (wavesurferB) wavesurferB.destroy();
-
-    wavesurferB = WaveSurfer.create({
-      container: containerB.value,
-      waveColor: '#2C2C2C',
-      progressColor: '#FF9500',
-      cursorColor: '#FF9500',
-      height: 80,
-      normalize: true,
-    });
-
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const audioBuffer = audioContext.createBuffer(
-      1,
-      store.audioBuffers.B.length,
-      44100
-    );
-    audioBuffer.getChannelData(0).set(store.audioBuffers.B);
-
-    wavesurferB.loadDecodedBuffer(audioBuffer);
-    logger.info('WaveformViewer', 'Waveform B initialized');
-  } catch (error) {
-    logger.error('WaveformViewer', 'Failed to init waveform B', { error: String(error) });
-  }
-}
-
-function resetZoomA(): void {
-  zoomLevel.value = 100;
-  updateZoom();
-}
-
-function resetZoomB(): void {
+function resetZoom(): void {
   zoomLevel.value = 100;
   updateZoom();
 }
 
 function updateZoom(): void {
-  const pixelsPerSecond = Math.max(10, 50 * (zoomLevel.value / 100));
-  if (wavesurferA) wavesurferA.setOptions({ pixelsPerSecond });
-  if (wavesurferB) wavesurferB.setOptions({ pixelsPerSecond });
+  const minPxPerSec = Math.max(10, 50 * (zoomLevel.value / 100));
+  for (const slot of ['A', 'B'] as const) {
+    if (instances[slot]) instances[slot].setOptions({ minPxPerSec });
+  }
   logger.debug('WaveformViewer', 'Zoom updated', { level: zoomLevel.value });
 }
 
-function formatSelection(selection: any): string {
+function formatSelection(slot: 'A' | 'B'): string {
+  const selection = store.selections[slot];
   if (!selection || selection.endSample === 0) {
     return 'Select region';
   }
-  const startSec = (selection.startSample / 44100).toFixed(2);
-  const endSec = (selection.endSample / 44100).toFixed(2);
-  const durSec = ((selection.endSample - selection.startSample) / 44100).toFixed(2);
+  const sampleRate = store.sampleRates[slot];
+  const startSec = (selection.startSample / sampleRate).toFixed(2);
+  const endSec = (selection.endSample / sampleRate).toFixed(2);
+  const durSec = ((selection.endSample - selection.startSample) / sampleRate).toFixed(2);
   return `${startSec}s - ${endSec}s (${durSec}s)`;
 }
-
-watch(
-  () => store.audioBuffers.A.length,
-  () => {
-    logger.debug('WaveformViewer', 'Audio A changed, reinitializing');
-  }
-);
 </script>
 
 <style scoped>
@@ -185,11 +169,22 @@ watch(
   min-height: 0;
 }
 
-.empty-state {
+.waveform-area {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 80px;
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   color: var(--color-text-secondary);
   font-size: 12px;
 }
