@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import * as featherIconsLib from 'feather-icons';
 
 interface Props {
@@ -36,14 +36,23 @@ const props = withDefaults(defineProps<Props>(), {
   size: 24,
 });
 
+const currentTheme = ref(document.documentElement.getAttribute('data-theme') || '');
+
+onMounted(() => {
+  const observer = new MutationObserver(() => {
+    currentTheme.value = document.documentElement.getAttribute('data-theme') || '';
+  });
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  onUnmounted(() => observer.disconnect());
+});
+
 const icon = computed(() => {
   const iconName = props.name.replace(/([A-Z])/g, '-$1').toLowerCase() as keyof typeof featherIconsLib.icons;
   return (featherIconsLib.icons as any)[iconName] || null;
 });
 
 const retroThemeStyle = computed(() => {
-  const theme = document.documentElement.getAttribute('data-theme');
-  if (theme === 'retro') {
+  if (currentTheme.value === 'retro') {
     return {
       stroke: '#33FF33',
       color: '#33FF33',
