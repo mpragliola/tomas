@@ -1,4 +1,4 @@
-import { ref, computed, nextTick, watch } from 'vue';
+import { ref, computed, nextTick, watch, onUnmounted } from 'vue';
 import type { Ref } from 'vue';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { irMagnitudeResponse } from '../services/dsp/irResponse';
@@ -264,7 +264,7 @@ export function useSpectrumPlot(
           y: Array.from(A.magnitudesDb),
           type: 'scatter',
           mode: 'lines',
-          name: 'Spectrum A',
+          name: 'A',
           meta: 'A',
           visible: isShown('A'),
           line: { color: getColorPalette().spectrumA, width: 1 },
@@ -278,7 +278,7 @@ export function useSpectrumPlot(
           y: Array.from(B.magnitudesDb),
           type: 'scatter',
           mode: 'lines',
-          name: 'Spectrum B',
+          name: 'B',
           meta: 'B',
           visible: isShown('B'),
           line: { color: getColorPalette().spectrumB, width: 1 },
@@ -325,24 +325,30 @@ export function useSpectrumPlot(
         }
       }
 
+      const theme = getTheme();
+      const isRetro = theme === 'retro';
+      const axisFontSize = isRetro ? 12 : 10;
+      const mainFontSize = isRetro ? 13 : 12;
+      const legendFontSize = isRetro ? 12 : 11;
+
       const layout: any = {
         title: '',
         xaxis: {
-          title: { text: 'Frequency (Hz)', font: { family: fontFamily, size: 10 } },
+          title: { text: 'Frequency (Hz)', font: { family: fontFamily, size: axisFontSize } },
           type: 'log',
           range: xRange,
           autorange: false,
           zeroline: false,
           gridcolor: '#333333',
-          tickfont: { family: fontFamily, size: 10 },
+          tickfont: { family: fontFamily, size: axisFontSize },
           automargin: true,
         },
         yaxis: {
-          title: { text: 'Magnitude (dB)', font: { family: fontFamily, size: 10 } },
+          title: { text: 'Magnitude (dB)', font: { family: fontFamily, size: axisFontSize } },
           ...(yRange ? { range: yRange, autorange: false } : {}),
           zeroline: false,
           gridcolor: '#333333',
-          tickfont: { family: fontFamily, size: 10 },
+          tickfont: { family: fontFamily, size: axisFontSize },
           automargin: true,
           // Locked so a drag-zoom only ever selects a horizontal band on x — Plotly
           // narrows box-zoom to whichever axes aren't fixedrange, and vertical zoom has
@@ -351,10 +357,10 @@ export function useSpectrumPlot(
         },
         plot_bgcolor: 'rgba(26, 26, 26, 0.5)',
         paper_bgcolor: '#1A1A1A',
-        font: { family: fontFamily, size: 12, color: '#E5E5E5' },
+        font: { family: fontFamily, size: mainFontSize, color: '#E5E5E5' },
         margin: { l: 45, r: 20, t: 20, b: 45 },
         hovermode: 'x unified',
-        hoverlabel: { font: { family: fontFamily, size: 11 } },
+        hoverlabel: { font: { family: fontFamily, size: legendFontSize } },
         showlegend: true,
         legend: {
           xref: 'paper',
@@ -367,7 +373,7 @@ export function useSpectrumPlot(
           bgcolor: 'rgba(0, 0, 0, 0.55)',
           bordercolor: '#333333',
           borderwidth: 1,
-          font: { family: fontFamily, size: 11, color: '#E5E5E5' },
+          font: { family: fontFamily, size: legendFontSize, color: '#E5E5E5' },
         },
       };
 
@@ -380,15 +386,18 @@ export function useSpectrumPlot(
 
       if (irResponse && isShown('IR')) {
         const span = ySpan;
+        const palette = getColorPalette();
+        const irAxisColor = isRetro ? 'rgba(85, 170, 85, 0.5)' : 'rgba(139, 92, 246, 0.35)';
+        const irTickColor = isRetro ? 'rgba(85, 170, 85, 0.9)' : 'rgba(139, 92, 246, 0.8)';
         layout.yaxis2 = {
-          title: { text: 'IR gain (dB)', font: { family: fontFamily, size: 10 } },
+          title: { text: 'IR gain (dB)', font: { family: fontFamily, size: axisFontSize } },
           overlaying: 'y',
           side: 'right',
           range: [-span, span],
           showgrid: false,
           zeroline: true,
-          zerolinecolor: 'rgba(139, 92, 246, 0.35)',
-          tickfont: { family: fontFamily, size: 10, color: 'rgba(139, 92, 246, 0.8)' },
+          zerolinecolor: irAxisColor,
+          tickfont: { family: fontFamily, size: axisFontSize, color: irTickColor },
           automargin: true,
           fixedrange: true,
         };
@@ -505,6 +514,32 @@ export function useSpectrumPlot(
 
     Plotly.restyle(plotContainer.value, { y: [Array.from(curve)] }, [liveTraceIndex]);
   }
+
+  // Watch for theme changes and redraw with new colors
+  const currentTheme = ref(getTheme());
+  let themeObserver: MutationObserver | null = null;
+
+  const setupThemeObserver = () => {
+    themeObserver = new MutationObserver(() => {
+      const newTheme = getTheme();
+      if (newTheme !== currentTheme.value) {
+        currentTheme.value = newTheme;
+        scheduleUpdate();
+      }
+    });
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+  };
+
+  if (typeof window !== 'undefined') {
+    setupThemeObserver();
+  }
+
+  onUnmounted(() => {
+    themeObserver?.disconnect();
+  });
 
   return { plotContainer, scheduleUpdate, handleLiveMagnitudesUpdate, plotAxisRange };
 }

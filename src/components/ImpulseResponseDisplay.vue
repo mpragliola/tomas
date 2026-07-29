@@ -78,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { logger } from '../services/logging';
 import { peak } from '../utils/mathUtils';
@@ -118,6 +118,30 @@ watch(
     await drawIR();
   }
 );
+
+// Watch for theme changes and redraw with new colors
+const currentTheme = ref(getTheme());
+
+const setupThemeObserver = () => {
+  const observer = new MutationObserver(() => {
+    const newTheme = getTheme();
+    if (newTheme !== currentTheme.value) {
+      currentTheme.value = newTheme;
+      drawIR();
+    }
+  });
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  return observer;
+};
+
+let themeObserver: MutationObserver | null = null;
+onMounted(() => {
+  themeObserver = setupThemeObserver();
+});
+
+onUnmounted(() => {
+  themeObserver?.disconnect();
+});
 
 async function drawIR(): Promise<void> {
   // Let any pending render flush before touching the canvas
@@ -162,6 +186,26 @@ async function drawIR(): Promise<void> {
   logger.debug('ImpulseResponseDisplay', 'IR drawn', { samples: ir.length });
 }
 
+function getTheme(): string {
+  return document.documentElement.getAttribute('data-theme') || 'dark';
+}
+
+function getIRColors() {
+  const theme = getTheme();
+  if (theme === 'retro') {
+    return {
+      waveformFill: 'rgba(68, 255, 68, 0.6)',
+      responseFill: 'rgba(85, 170, 85, 0.18)',
+      responseStroke: 'rgba(85, 170, 85, 0.6)',
+    };
+  }
+  return {
+    waveformFill: 'rgba(255, 255, 255, 0.6)',
+    responseFill: 'rgba(139, 92, 246, 0.18)',
+    responseStroke: 'rgba(139, 92, 246, 0.45)',
+  };
+}
+
 /**
  * Time-domain shape, peak-normalized to fill the same vertical bounds the spectrum uses.
  * Filled rather than stroked so it reads as a solid mass under the spectrum's outline,
@@ -189,7 +233,7 @@ function drawWaveform(
   tops.forEach((y, i) => ctx.lineTo(i, y));
   ctx.lineTo(w - 1, centerY);
   ctx.closePath();
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+  ctx.fillStyle = getIRColors().waveformFill;
   ctx.fill();
 }
 
@@ -221,18 +265,19 @@ function drawResponseOverlay(
     points.push([x, centerY - (db / span) * halfHeight]);
   }
 
+  const colors = getIRColors();
   ctx.beginPath();
   ctx.moveTo(points[0][0], centerY);
   for (const [x, y] of points) ctx.lineTo(x, y);
   ctx.lineTo(points[points.length - 1][0], centerY);
   ctx.closePath();
-  ctx.fillStyle = 'rgba(139, 92, 246, 0.18)';
+  ctx.fillStyle = colors.responseFill;
   ctx.fill();
 
   // Stroke the curve on its own, so the polygon's baseline edges stay invisible.
   ctx.beginPath();
   points.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
-  ctx.strokeStyle = 'rgba(139, 92, 246, 0.45)';
+  ctx.strokeStyle = colors.responseStroke;
   ctx.lineWidth = 1;
   ctx.stroke();
 }

@@ -16,7 +16,7 @@ const ZOOM_WHEEL_STEP = 1.15;
 
 // waveColor carries the waveform; progressColor and cursorColor are the transport, driven
 // from the store's position rather than by WaveSurfer playing anything itself
-const WAVE_COLORS: Record<SlotId, Record<string, string>> = {
+const WAVE_COLORS_DARK: Record<SlotId, Record<string, string>> = {
   A: {
     waveColor: '#5B93F5',
     progressColor: '#2563EB',
@@ -32,6 +32,31 @@ const WAVE_COLORS: Record<SlotId, Record<string, string>> = {
     overlayColor: 'rgba(255, 149, 0, 0.18)',
   },
 };
+
+const WAVE_COLORS_RETRO: Record<SlotId, Record<string, string>> = {
+  A: {
+    waveColor: 'rgba(100, 200, 100, 0.8)',
+    progressColor: 'rgba(68, 255, 68, 0.95)',
+    cursorColor: 'rgba(68, 255, 68, 0.95)',
+    regionColor: 'rgba(68, 255, 68, 0.22)',
+    overlayColor: 'rgba(68, 255, 68, 0.18)',
+  },
+  B: {
+    waveColor: 'rgba(85, 170, 85, 0.8)',
+    progressColor: 'rgba(51, 255, 51, 0.85)',
+    cursorColor: 'rgba(51, 255, 51, 0.85)',
+    regionColor: 'rgba(51, 255, 51, 0.22)',
+    overlayColor: 'rgba(51, 255, 51, 0.18)',
+  },
+};
+
+function getTheme(): string {
+  return document.documentElement.getAttribute('data-theme') || 'dark';
+}
+
+function getWaveColors(slot: SlotId): Record<string, string> {
+  return getTheme() === 'retro' ? WAVE_COLORS_RETRO[slot] : WAVE_COLORS_DARK[slot];
+}
 
 const MINIMAP_HEIGHT = 26;
 const SPECTROGRAM_HEIGHT = 96;
@@ -86,7 +111,39 @@ export function useWaveformSlot(
   // The transport lives in another panel, so the position arrives through the store
   watch(() => store.playheads[slot], syncCursor);
 
-  onUnmounted(destroy);
+  // Watch for theme changes and update colors without reinit
+  const currentTheme = ref(getTheme());
+  const setupThemeObserver = () => {
+    const observer = new MutationObserver(() => {
+      const newTheme = getTheme();
+      if (newTheme !== currentTheme.value) {
+        currentTheme.value = newTheme;
+        updateWaveformColors();
+      }
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return observer;
+  };
+  let themeObserver: MutationObserver | null = null;
+  if (typeof window !== 'undefined') {
+    themeObserver = setupThemeObserver();
+  }
+
+  function updateWaveformColors(): void {
+    if (!wave) return;
+
+    const { regionColor, overlayColor, ...colors } = getWaveColors(slot);
+    try {
+      wave.setOptions(colors);
+    } catch (error) {
+      logger.debug('WaveformSlot', `setOptions failed for ${slot}`, { error: String(error) });
+    }
+  }
+
+  onUnmounted(() => {
+    destroy();
+    themeObserver?.disconnect();
+  });
 
   function destroy(): void {
     if (!wave) return;
@@ -143,7 +200,7 @@ export function useWaveformSlot(
         import('wavesurfer.js/dist/plugins/spectrogram.esm.js'),
       ]);
       const sampleRate = store.sampleRates[slot];
-      const { regionColor, overlayColor, ...colors } = WAVE_COLORS[slot];
+      const { regionColor, overlayColor, ...colors } = getWaveColors(slot);
 
       regions = RegionsPlugin.create();
 
@@ -356,7 +413,7 @@ export function useWaveformSlot(
       spectrogramCursor.className = 'spectrogram-cursor';
       spectrogramCursor.style.cssText =
         `position: absolute; top: 0; bottom: 0; width: 1px; pointer-events: none; ` +
-        `z-index: 5; background-color: ${WAVE_COLORS[slot].cursorColor};`;
+        `z-index: 5; background-color: ${getWaveColors(slot).cursorColor};`;
       wrapper.appendChild(spectrogramCursor);
     }
 
