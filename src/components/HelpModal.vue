@@ -91,7 +91,7 @@ const chapters = [
   {
     title: 'Workflow',
     html: `<ol class="steps">
-      <li>Load or record a targer track into slot <strong>A</strong> and your reference into slot <strong>B</strong>.</li>
+      <li>Load or record a target track into slot <strong>A</strong> and your reference into slot <strong>B</strong>.</li>
       <li>Once loaded both, spectrum and IR are computed automatically — the bar-chart and tool icons in the header turn blue when ready.</li>
       <li>Use the <strong>Playback</strong> panel to audition the result or export the IR.</li>
       <li>You can also refine (or also dramatically change) the result by equalizing the IR</li>
