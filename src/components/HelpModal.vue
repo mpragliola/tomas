@@ -12,7 +12,7 @@
         <div class="about-header">
           <img src="/logo.svg" alt="Tomas" class="about-logo" />
           <p class="about-tagline">Tone Matcher Software</p>
-          <p class="about-sub">by Marco Pragliola</p>
+          <p class="about-sub">by <a href="mailto:marcopragliola@gmail.com">Marco Pragliola</a></p>
         </div>
 
         <div class="divider"></div>
