@@ -164,6 +164,15 @@
   --font-display: "Press Start 2P", "VT323", monospace;
   --font-body: "VT323", "Press Start 2P", monospace;
 
+  --font-size-micro: 15px;
+  --font-size-label: 16px;
+  --font-size-sm: 17px;
+  --font-size-base: 18px;
+  --font-size-md: 20px;
+  --font-size-lg: 22px;
+  --font-size-xl: 26px;
+  --font-size-xxl: 36px;
+
   --radius-xs: 0px;
   --radius-sm: 0px;
   --radius-md: 0px;
@@ -357,6 +366,22 @@
   background-color: #66FF66 !important;
   border-color: #33FF33 !important;
   color: #001100 !important;
+}
+
+:root[data-theme="retro"] .btn-icon {
+  color: #33FF33 !important;
+}
+
+:root[data-theme="retro"] .btn-icon .feather-icon {
+  color: #33FF33 !important;
+  stroke: #33FF33 !important;
+  filter: drop-shadow(0 0 2px rgba(51, 255, 51, 0.6)) !important;
+}
+
+:root[data-theme="retro"] .info-icon {
+  color: #33FF33 !important;
+  opacity: 1 !important;
+  filter: drop-shadow(0 0 2px rgba(51, 255, 51, 0.6)) !important;
 }
 
 /* Retro icons — bright green with glow */
