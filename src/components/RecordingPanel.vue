@@ -477,7 +477,6 @@ defineExpose({
 }
 
 .level-value {
-  font-family: var(--font-mono);
   font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-accent);
@@ -491,7 +490,6 @@ defineExpose({
 }
 
 .duration-time {
-  font-family: var(--font-mono);
   font-size: var(--font-size-md);
   font-weight: 600;
   color: var(--color-accent);
@@ -500,7 +498,6 @@ defineExpose({
 .duration-max {
   font-size: var(--font-size-label);
   color: var(--color-text-secondary);
-  font-family: var(--font-mono);
 }
 
 .divider {
@@ -552,7 +549,6 @@ defineExpose({
   font-size: var(--font-size-label);
   color: var(--color-accent);
   font-weight: 500;
-  font-family: var(--font-mono);
   text-align: right;
 }
 
