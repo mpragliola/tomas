@@ -3,7 +3,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2>Help</h2>
-        <button class="close-btn" @click="$emit('close')">
+        <button class="close-btn" title="Close" aria-label="Close" @click="$emit('close')">
           <Icon name="x" size="24" />
         </button>
       </div>

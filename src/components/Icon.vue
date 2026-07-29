@@ -10,7 +10,8 @@
     stroke-linecap="round"
     stroke-linejoin="round"
     class="feather-icon"
-    :aria-label="name"
+    aria-hidden="true"
+    focusable="false"
   >
     <g v-html="icon.contents" />
   </svg>

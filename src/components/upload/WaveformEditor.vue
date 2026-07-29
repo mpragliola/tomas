@@ -75,7 +75,7 @@
       >
         <Icon name="rotate-ccw" size="14" />
       </button>
-      <button type="button" class="cancel-btn" @click.stop="emit('clear')">
+      <button type="button" class="cancel-btn" title="Remove file" aria-label="Remove file" @click.stop="emit('clear')">
         <Icon name="x" size="16" />
       </button>
     </div>
