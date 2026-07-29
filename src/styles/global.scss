@@ -1,6 +1,7 @@
 @use 'variables' as *;
 
 @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
 
 /* Design System: Color Tokens */
 :root {
@@ -142,6 +143,108 @@
   --color-modal-bg: #2C2E28;
   --color-modal-header: #444038;
   --color-accent-text: #DDD0B8;
+}
+
+:root[data-theme="retro"] {
+  color-scheme: dark;
+
+  --color-bg: #001100;
+  --color-text-primary: #33FF33;
+  --color-text-secondary: #229922;
+  --color-accent: #66FF66;
+  --color-spectrum-a: #33FF33;
+  --color-spectrum-b: #00FFCC;
+  --color-border: #226622;
+  --color-success: #33FF33;
+  --color-error: #FF4444;
+  --color-warning: #FFCC00;
+  --color-modal-bg: #001A00;
+  --color-modal-header: #002800;
+  --color-accent-text: #001100;
+
+  --font-display: "Press Start 2P", "VT323", monospace;
+  --font-body: "VT323", "Press Start 2P", monospace;
+
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+
+  --shadow-sm: 2px 2px 0 rgba(51, 255, 51, 0.4);
+  --shadow-md: 4px 4px 0 rgba(51, 255, 51, 0.4);
+}
+
+/* Retro CRT/phosphor effects — scoped so no other theme pays for them */
+:root[data-theme="retro"] body {
+  font-size: 18px;
+  text-shadow: 0 0 2px currentColor, 0 0 8px rgba(51, 255, 51, 0.5);
+  position: relative;
+}
+
+:root[data-theme="retro"] h1,
+:root[data-theme="retro"] h2,
+:root[data-theme="retro"] h3,
+:root[data-theme="retro"] h4 {
+  text-shadow: 0 0 2px currentColor, 0 0 10px rgba(102, 255, 102, 0.7);
+  letter-spacing: 1px;
+}
+
+:root[data-theme="retro"] input[type="text"],
+:root[data-theme="retro"] input[type="number"],
+:root[data-theme="retro"] select,
+:root[data-theme="retro"] textarea {
+  box-shadow: inset 0 0 6px rgba(51, 255, 51, 0.35);
+}
+
+:root[data-theme="retro"] input:focus,
+:root[data-theme="retro"] select:focus,
+:root[data-theme="retro"] textarea:focus,
+:root[data-theme="retro"] button:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 8px rgba(102, 255, 102, 0.8);
+}
+
+/* Scanlines + vignette, overlaid above content but click-through */
+:root[data-theme="retro"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0) 0px,
+      rgba(0, 0, 0, 0) 1px,
+      rgba(0, 0, 0, 0.15) 2px,
+      rgba(0, 0, 0, 0.15) 3px
+    ),
+    radial-gradient(
+      ellipse at center,
+      rgba(0, 0, 0, 0) 60%,
+      rgba(0, 20, 0, 0.35) 100%
+    );
+  mix-blend-mode: multiply;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme="retro"] body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9998;
+    background: rgba(51, 255, 51, 0.03);
+    animation: retro-flicker 6s infinite;
+  }
+}
+
+@keyframes retro-flicker {
+  0%, 96%, 100% { opacity: 1; }
+  97% { opacity: 0.85; }
+  98% { opacity: 1; }
+  99% { opacity: 0.92; }
 }
 
 /* Global Styles */

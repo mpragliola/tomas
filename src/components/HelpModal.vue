@@ -268,7 +268,7 @@ $transition-accordion: 250ms ease;
 .about-logo {
   height: 56px;
   width: auto;
-  @include themed(filter, none, invert(1), $earth: invert(1));
+  @include themed(filter, none, invert(1), $earth: invert(1), $retro: invert(1) sepia(1) saturate(6) hue-rotate(70deg) brightness(1.1));
 }
 
 .about-tagline {

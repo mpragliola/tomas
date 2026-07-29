@@ -95,9 +95,9 @@ import Icon from './components/Icon.vue';
 import { logger } from './services/logging';
 import { useAnalysisStore } from './stores/analysisStore';
 
-type Theme = 'light' | 'dark' | 'sepia' | 'earth';
+type Theme = 'light' | 'dark' | 'sepia' | 'earth' | 'retro';
 
-const THEME_ORDER: Theme[] = ['light', 'dark', 'sepia', 'earth'];
+const THEME_ORDER: Theme[] = ['light', 'dark', 'sepia', 'earth', 'retro'];
 
 function isValidTheme(value: string | null): value is Theme {
   return value !== null && (THEME_ORDER as string[]).includes(value);
@@ -117,6 +117,7 @@ const THEME_META: Record<Theme, { icon: string; title: string }> = {
   dark: { icon: 'moon', title: 'Dark mode' },
   sepia: { icon: 'coffee', title: 'Sepia mode' },
   earth: { icon: 'droplet', title: 'Earth mode' },
+  retro: { icon: 'terminal', title: 'Retro mode' },
 };
 
 const nextThemeMeta = computed(() => {
@@ -255,7 +256,7 @@ async function computeIR(): Promise<void> {
 .app-logo {
   height: 48px;
   width: auto;
-  @include themed(filter, none, invert(1), $earth: invert(1));
+  @include themed(filter, none, invert(1), $earth: invert(1), $retro: invert(1) sepia(1) saturate(6) hue-rotate(70deg) brightness(1.1));
 }
 
 .app-title {
