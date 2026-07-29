@@ -60,10 +60,16 @@ const chapters = [
     title: 'What is tone matching?',
     html: `<p class="text">
       Every recording chain — microphone, preamp, room, cabinet — colours the sound in its own way.
-      Tone matching is the process of measuring <em>how</em> two recordings differ in frequency balance
-      and then automatically generating a correction filter so that one sounds like the other.
-      Instead of spending hours tweaking EQ by ear, Tomas does the math: it analyses the spectral
+      <strong>Tone matching is the process of measuring <em>how</em> two recordings differ in frequency balance
+      and then automatically generating a correction filter so that one sounds like the other.</strong>
+    </p>
+    <p class="text">
+      Instead of spending hours tweaking EQ by ear, imagine having an equalizer with hundreds or thousands
+      of faders that has learned the difference between the two audio sources. Tomas analyses the spectral 
       envelope of both tracks and computes exactly how much to boost or cut at every frequency.
+    </p>
+    <p class="text">
+      One way to apply this filter is using <strong>impulse responses</strong>.
     </p>`,
   },
   {
@@ -72,18 +78,23 @@ const chapters = [
       An impulse response is a short audio file that fully describes how a linear system — an EQ,
       a reverb room, a speaker cabinet, a microphone — responds to sound. Play a theoretically
       perfect click (an impulse) through the system and record what comes out: that recording
-      <em>is</em> the IR. Because of how convolution works, feeding any audio signal through that
+      <em>is</em> the IR. Because of how <strong>convolution</strong> works, feeding any audio signal through that
       same math produces exactly the same result as running it through the real system.
       Tomas generates an IR that encodes the tonal difference between your two tracks, so anything
       you convolve with it will inherit that correction.
+    </p>
+    <p class="text">
+      A nice feature of IRs is that they can be exported and imported as <strong>regular WAV
+      files</strong>, which encode linear responses in the time and frequency domain.
     </p>`,
   },
   {
     title: 'Workflow',
     html: `<ol class="steps">
-      <li>Load or record a reference track into slot <strong>A</strong> and your target into slot <strong>B</strong>.</li>
-      <li>The spectrum and IR are computed automatically — the bar-chart and tool icons in the header turn blue when ready.</li>
+      <li>Load or record a targer track into slot <strong>A</strong> and your reference into slot <strong>B</strong>.</li>
+      <li>Once loaded both, spectrum and IR are computed automatically — the bar-chart and tool icons in the header turn blue when ready.</li>
       <li>Use the <strong>Playback</strong> panel to audition the result or export the IR.</li>
+      <li>You can also refine (or also dramatically change) the result by equalizing the IR</li>
     </ol>`,
   },
   {
@@ -114,14 +125,14 @@ const chapters = [
       Tone matching is a powerful starting point, but it has limits worth understanding.
     </p>
     <p class="text" style="margin-top:10px">
-      The correction filter operates purely in the <strong>frequency domain</strong>: it can
+      The correction filter <strong>operates purely in the frequency domain</strong>: it can
       shift energy balance across the spectrum, but it cannot change a sound's underlying
       <em>character</em> — its transient response, harmonic saturation, dynamic behaviour,
       room reflections, or the non-linearities of analogue gear. A bright solid-state preamp
       EQ'd to match a warm tube preamp will still sound like a solid-state preamp.
     </p>
     <p class="text" style="margin-top:10px">
-      Results are also only as good as the material. Both recordings should contain similar
+      <strong>Results are also only as good as the material.</strong> Both recordings should contain similar
       musical content and dynamics — a sparse clean guitar passage compared against a
       heavily compressed rock mix will produce a correction that reflects the arrangement
       difference as much as the EQ difference. Selecting a representative region in each
@@ -139,30 +150,6 @@ const chapters = [
       <li>Scroll to zoom; drag the scroll bar at the bottom to pan.</li>
       <li>The <strong>normalize</strong> button (arrows icon) peak-normalises the slot so quiet recordings compare fairly.</li>
       <li>Toggle between waveform and spectrogram views with the chart icon.</li>
-    </ul>`,
-  },
-  {
-    title: 'Advanced settings',
-    html: `<p class="text">
-      Open the settings panel (gear icon) to fine-tune how the spectrum is analysed and
-      how the correction filter is built.
-    </p>
-    <ul class="tips" style="margin-top:10px">
-      <li><strong>FFT Size</strong> — analysis resolution. Higher gives narrower, more accurate
-      frequency bins (especially in the low end), at the cost of a little extra compute time.</li>
-      <li><strong>Window</strong> — the FFT windowing function. Hann is a good default for
-      music material.</li>
-      <li><strong>Filter Taps</strong> — length, and therefore precision, of the generated
-      correction IR.</li>
-      <li><strong>Max Boost / Max Cut</strong> — clamp how aggressively the filter can push
-      the spectrum in either direction, keeping noisy or empty bands from producing extreme
-      corrections.</li>
-      <li><strong>Smoothing</strong> — averages the correction curve over a fraction of an
-      octave. Finer settings track detail more closely; coarser settings give a gentler,
-      more natural-sounding curve.</li>
-      <li><strong>Match Band</strong> — the frequency range where both recordings actually
-      have signal above the noise floor. Outside this band the correction tapers off
-      automatically rather than amplifying noise.</li>
     </ul>`,
   },
 ];
