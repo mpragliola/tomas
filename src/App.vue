@@ -10,27 +10,12 @@
         <button
           @click="cycleTheme"
           class="btn-icon"
-          :title="nextThemeMeta.title"
+          :title="`Switch to ${nextThemeMeta.title}`"
+          :aria-label="`Switch to ${nextThemeMeta.title}`"
         >
-          <Icon :name="nextThemeMeta.icon" size="22" />
+          <Icon :name="THEME_META[currentTheme].icon" size="22" />
         </button>
-        <button
-          @click="computeSpectra"
-          :class="['btn-icon', { done: hasSpectra, busy: computingStep === 'spectra' }]"
-          :disabled="store.audioBuffers.A.length === 0 || store.audioBuffers.B.length === 0 || computingStep !== null"
-          :title="hasSpectra ? 'Spectrum computed — click to recompute' : 'Compute Spectrum'"
-        >
-          <Icon name="bar-chart" size="22" />
-        </button>
-        <button
-          @click="computeIR"
-          :class="['btn-icon', { done: !!store.ir, busy: computingStep === 'ir' }]"
-          :disabled="!hasSpectra || computingStep !== null"
-          :title="store.ir ? 'IR derived — click to re-derive' : 'Derive IR'"
-        >
-          <Icon name="tool" size="22" />
-        </button>
-        <button @click="showHelp = true" class="btn-icon" title="Help">
+        <button @click="showHelp = true" class="btn-icon" title="Help" aria-label="Help">
           <Icon name="help-circle" size="22" />
         </button>
       </div>
@@ -47,7 +32,6 @@
         <div class="main-lower">
           <!-- Left panel: Controls & Recording -->
           <aside class="panel panel-input panel-side-bg">
-            <ControlPanel @params-changed="onParamsChanged" />
             <RecordingPanel ref="recordingPanel" @recorded="onRecorded" />
           </aside>
 
@@ -78,18 +62,21 @@
     </Transition>
 
     <!-- Status/Toast area -->
-    <div class="toast-container" />
+    <div class="toast-container">
+      <TransitionGroup name="toast">
+        <div v-for="t in toasts" :key="t.id" class="toast animate-in-right">{{ t.message }}</div>
+      </TransitionGroup>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import FileUpload from './components/FileUpload.vue';
 import RecordingPanel from './components/RecordingPanel.vue';
 import SpectrumViewer from './components/SpectrumViewer.vue';
 import ImpulseResponseDisplay from './components/ImpulseResponseDisplay.vue';
 import PlaybackPanel from './components/PlaybackPanel.vue';
-import ControlPanel from './components/ControlPanel.vue';
 import HelpModal from './components/HelpModal.vue';
 import Icon from './components/Icon.vue';
 import { logger } from './services/logging';
@@ -106,11 +93,8 @@ function isValidTheme(value: string | null): value is Theme {
 const store = useAnalysisStore();
 const showHelp = ref(false);
 const recordingPanel = ref<InstanceType<typeof RecordingPanel>>();
-const computingStep = ref<'spectra' | 'ir' | null>(null);
 const currentTheme = ref<Theme>('dark');
 const isSpectrumExpanded = ref(false);
-
-const hasSpectra = computed(() => !!store.spectra.A && !!store.spectra.B);
 
 const THEME_META: Record<Theme, { icon: string; title: string }> = {
   light: { icon: 'sun', title: 'Light mode' },
@@ -118,6 +102,19 @@ const THEME_META: Record<Theme, { icon: string; title: string }> = {
   sepia: { icon: 'coffee', title: 'Sepia mode' },
   earth: { icon: 'droplet', title: 'Earth mode' },
 };
+
+const toasts = ref<{ id: number; message: string }[]>([]);
+
+watch(
+  () => store.lastError,
+  (err) => {
+    if (!err) return;
+    toasts.value.push({ id: err.id, message: err.message });
+    window.setTimeout(() => {
+      toasts.value = toasts.value.filter((t) => t.id !== err.id);
+    }, 5000);
+  },
+);
 
 const nextThemeMeta = computed(() => {
   const currentIndex = THEME_ORDER.indexOf(currentTheme.value);
@@ -187,33 +184,6 @@ function onIRDerived(e: any): void {
   logger.info('App', 'IR derived event received', { length: e.length });
 }
 
-function onParamsChanged(e: any): void {
-  logger.debug('App', 'Params changed', e);
-}
-
-async function computeSpectra(): Promise<void> {
-  if (store.audioBuffers.A.length === 0 || store.audioBuffers.B.length === 0) return;
-  computingStep.value = 'spectra';
-  try {
-    await store.computeSpectra(store.fftConfig);
-  } catch (error) {
-    logger.error('App', 'Failed to compute spectra', { error: String(error) });
-  } finally {
-    computingStep.value = null;
-  }
-}
-
-async function computeIR(): Promise<void> {
-  if (!store.spectra.A || !store.spectra.B) return;
-  computingStep.value = 'ir';
-  try {
-    await store.computeToneMatchIR(store.toneMatchConfig);
-  } catch (error) {
-    logger.error('App', 'Failed to compute IR', { error: String(error) });
-  } finally {
-    computingStep.value = null;
-  }
-}
 
 </script>
 
@@ -266,6 +236,7 @@ async function computeIR(): Promise<void> {
 }
 
 .app-title-by {
+  font-size: 12px;
   font-weight: 300;
   opacity: 0.6;
 }
@@ -273,43 +244,6 @@ async function computeIR(): Promise<void> {
 .app-header-actions {
   display: flex;
   gap: 8px;
-}
-
-.btn-icon.done {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-  background-color: color-mix(in srgb, var(--color-accent) 12%, transparent);
-  animation: done-pulse 300ms ease-out;
-
-  &:hover:not(:disabled) {
-    background-color: color-mix(in srgb, var(--color-accent) 22%, transparent);
-  }
-}
-
-.btn-icon.busy {
-  color: var(--color-accent);
-
-  .feather-icon {
-    animation: icon-spin 900ms linear infinite;
-  }
-}
-
-@keyframes icon-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes done-pulse {
-  0% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.15);
-  }
-  100% {
-    transform: scale(1);
-  }
 }
 
 .app-main {
@@ -389,6 +323,29 @@ async function computeIR(): Promise<void> {
   bottom: 16px;
   right: 16px;
   z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.toast {
+  max-width: 320px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-modal-bg);
+  border: 1px solid var(--color-error);
+  color: var(--color-error);
+  box-shadow: var(--shadow-md);
+  font-size: var(--font-size-sm);
+}
+
+.toast-leave-active {
+  transition: opacity $transition-fast;
+}
+
+.toast-leave-to {
+  opacity: 0;
 }
 
 // Transition utilities for expand/collapse animations
