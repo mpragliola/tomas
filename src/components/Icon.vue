@@ -10,6 +10,7 @@
     stroke-linecap="round"
     stroke-linejoin="round"
     class="feather-icon"
+    :style="retroThemeStyle"
     aria-hidden="true"
     focusable="false"
   >
@@ -38,6 +39,18 @@ const props = withDefaults(defineProps<Props>(), {
 const icon = computed(() => {
   const iconName = props.name.replace(/([A-Z])/g, '-$1').toLowerCase() as keyof typeof featherIconsLib.icons;
   return (featherIconsLib.icons as any)[iconName] || null;
+});
+
+const retroThemeStyle = computed(() => {
+  const theme = document.documentElement.getAttribute('data-theme');
+  if (theme === 'retro') {
+    return {
+      stroke: '#33FF33',
+      color: '#33FF33',
+      filter: 'drop-shadow(0 0 2px rgba(51, 255, 51, 0.6))',
+    };
+  }
+  return {};
 });
 </script>
 
