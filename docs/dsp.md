@@ -14,8 +14,7 @@ phase, not the bands where neither recording has anything to say).
 ```
 WAV / device capture
    ↓  parse, PCM → float; deinterleave + mixdown  §2
-   ↓  optional peak normalize                     §2.4
-   ↓  selection slice (start/end sample)          §2.5
+   ↓  selection slice (start/end sample)          §2.4
    ↓  Welch average, incoherent across channels   §3
    ↓  minimum-statistics noise floor              §4
    ↓  tone-match curve: ratio, smooth, gate, clamp §5
@@ -83,15 +82,7 @@ the choice is between "device-dependent" and "always the same": the context is p
 This matters less than it used to. Since the export path renders the filter at its target
 rate (§11.1), the working rate no longer reaches the exported IR at all.
 
-### 2.4 Peak normalization (optional, per slot)
-
-$$g = \frac{1}{\max_n |x[n]|}$$
-
-Computed over the **whole file**, not the selection, so dragging the selection does not keep
-changing the gain. It is a display/monitoring convenience — it cannot change the derived
-curve, because the overall level difference is removed explicitly in §5.3.
-
-### 2.5 Selection gate
+### 2.4 Selection gate
 
 A Welch average over two frames of a single transient is not a tone. `assertLongEnough`
 rejects anything shorter than
@@ -115,7 +106,7 @@ The symmetric form is for filter design; for spectral analysis it biases the win
 sample and breaks constant-overlap-add. Hamming (`0.54 - 0.46cos`) and rectangular are
 selectable but Hann is the default.
 
-### 3.2 Welch average
+### 3.1 Welch average
 
 `computeFFT` looks only at the first `fftSize` samples — a few milliseconds of a multi-minute
 take. Tone matching needs the *average* behaviour, so `computeAveragedFFT` averages **power**
@@ -144,7 +135,7 @@ Three details that matter:
   present only on a single-frame `computeFFT`. The IR gets its phase from the minimum-phase
   construction in §7 instead.
 
-### 3.3 Why 16384-point FFTs
+### 3.2 Why 16384-point FFTs
 
 At 44.1 kHz, a 2048-point FFT gives 21.5 Hz bins. A 1/6-octave band at 100 Hz is only 12 Hz
 wide — **narrower than one bin** — so the entire low end arrives unsmoothed and noisy.
@@ -157,7 +148,7 @@ wide — **narrower than one bin** — so the entire low end arrives unsmoothed 
 Cost is milliseconds, offline. Overlap 0.75 (rather than 0.5) roughly doubles the frame
 count for the same material, so the Welch average settles faster on short selections.
 
-### 3.4 dB conversion — [spectrum.ts](../src/services/dsp/spectrum.ts)
+### 3.3 dB conversion — [spectrum.ts](../src/services/dsp/spectrum.ts)
 
 $$L[k] = 20\log_{10}\frac{\max(|X[k]|,\,\epsilon)}{X_{\text{ref}}}, \qquad \epsilon = 10^{-10}$$
 

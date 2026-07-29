@@ -61,15 +61,6 @@
       <button
         type="button"
         class="tool-btn"
-        :class="{ active: store.normalized[slotId] }"
-        :title="normalizeTitle"
-        @click.stop="toggleNormalize"
-      >
-        <Icon name="maximize-2" size="14" />
-      </button>
-      <button
-        type="button"
-        class="tool-btn"
         title="Reset zoom & selection"
         @click.stop="resetView"
       >
@@ -139,24 +130,6 @@ const selectionLabel = computed(() => {
   return `${start}s – ${end}s`;
 });
 
-const normalizeTitle = computed(() => {
-  if (!store.normalized[props.slotId]) return 'Normalize to peak';
-  const db = 20 * Math.log10(store.normalizeGains[props.slotId]);
-  return `Normalized (${db >= 0 ? '+' : ''}${db.toFixed(1)} dB) — click to restore`;
-});
-
-// Peak-normalize the slot's samples (store side) and repaint from the new data
-function toggleNormalize(): void {
-  const wasOn = store.normalized[props.slotId];
-  const isOn = store.toggleNormalized(props.slotId);
-  if (isOn === wasOn) {
-    emit('status', `Cannot normalize ${props.slotId}: silent buffer`, 2000);
-    return;
-  }
-
-  repaint();
-  spectrum.schedule();
-}
 </script>
 
 <style lang="scss" scoped>

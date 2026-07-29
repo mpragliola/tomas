@@ -35,15 +35,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
   }
 
   const audioBuffers = ref({ A: new Float32Array(), B: new Float32Array() });
-  // Untouched copies, so peak normalization stays reversible
   const sourceBuffers = ref({ A: new Float32Array(), B: new Float32Array() });
-  /**
-   * The original channels of each take, deinterleaved and never mixed down.
-   *
-   * Analysis reads these; everything else reads `audioBuffers`. Kept at source level —
-   * peak normalization is a scalar, so `computeSpectra` applies `normalizeGains` on the
-   * fly rather than storing a second scaled copy of every channel.
-   */
   const channelBuffers = ref({ A: [] as Float32Array[], B: [] as Float32Array[] });
   const normalized = ref({ A: false, B: false });
   const normalizeGains = ref({ A: 1, B: 1 });
@@ -272,54 +264,6 @@ export const useAnalysisStore = defineStore('analysis', () => {
     });
   }
 
-  /**
-   * Peak-normalize a slot to full scale, or restore the original samples.
-   * The gain is derived from the whole file (not the selection) so panning the
-   * selection around does not keep changing the level. Everything downstream —
-   * waveform, spectra, IR, playback — reads audioBuffers, so it all follows.
-   */
-  function setNormalized(slot: 'A' | 'B', enabled: boolean): boolean {
-    const source = sourceBuffers.value[slot];
-    if (source.length === 0) return normalized.value[slot];
-
-    if (!enabled) {
-      audioBuffers.value[slot] = source;
-      normalized.value[slot] = false;
-      normalizeGains.value[slot] = 1;
-      logger.info('analysisStore', `Normalization off: ${slot}`);
-      return false;
-    }
-
-    let peak = 0;
-    for (let i = 0; i < source.length; i++) {
-      const abs = Math.abs(source[i]);
-      if (abs > peak) peak = abs;
-    }
-
-    // Silence has no peak to scale to; leave it alone rather than divide by zero
-    if (peak === 0) {
-      logger.warn('analysisStore', `Cannot normalize silent buffer: ${slot}`);
-      return false;
-    }
-
-    const gain = 1 / peak;
-    const out = new Float32Array(source.length);
-    for (let i = 0; i < source.length; i++) out[i] = source[i] * gain;
-
-    audioBuffers.value[slot] = out;
-    normalized.value[slot] = true;
-    normalizeGains.value[slot] = gain;
-
-    logger.info('analysisStore', `Normalized ${slot}`, {
-      peak: peak.toFixed(4),
-      gainDb: (20 * Math.log10(gain)).toFixed(2),
-    });
-    return true;
-  }
-
-  function toggleNormalized(slot: 'A' | 'B'): boolean {
-    return setNormalized(slot, !normalized.value[slot]);
-  }
 
   /**
    * A Welch average over a couple of frames of one transient is not a tone. Reject
@@ -1056,8 +1000,6 @@ export const useAnalysisStore = defineStore('analysis', () => {
     stopRecording,
     swapSlots,
     updateSelection,
-    setNormalized,
-    toggleNormalized,
     computeSpectra,
     computeToneMatchIR,
     renderIRAt,

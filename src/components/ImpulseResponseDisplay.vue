@@ -207,7 +207,7 @@ function getIRColors() {
 }
 
 /**
- * Time-domain shape, peak-normalized to fill the same vertical bounds the spectrum uses.
+ * Time-domain shape scaled to fill the same vertical bounds the spectrum uses.
  * Filled rather than stroked so it reads as a solid mass under the spectrum's outline,
  * with opacity keeping the spectrum curve visible through it.
  */

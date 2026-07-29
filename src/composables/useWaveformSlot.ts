@@ -255,8 +255,6 @@ export function useWaveformSlot(
         container: element,
         ...colors,
         height: 80,
-        // false: the waveform shows true amplitude against full scale, so the
-        // normalize button has something visible to do
         normalize: false,
         peaks: [audioData],
         duration: audioData.length / sampleRate,

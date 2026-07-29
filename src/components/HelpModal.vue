@@ -148,7 +148,6 @@ const chapters = [
     html: `<ul class="tips">
       <li>Drag on the waveform to select a region — the spectrum is computed from that region only.</li>
       <li>Scroll to zoom; drag the scroll bar at the bottom to pan.</li>
-      <li>The <strong>normalize</strong> button (arrows icon) peak-normalises the slot so quiet recordings compare fairly.</li>
       <li>Toggle between waveform and spectrogram views with the chart icon.</li>
     </ul>`,
   },
