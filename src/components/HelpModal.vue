@@ -157,7 +157,7 @@ const chapters = [
     html: `<ul class="tips">
       <li><strong>Pick the right audio regions.</strong> The best results come from comparing <em>similar</em> content across A and B — a guitar lick matched against the same lick, a vocal phrase matched against a reference phrase. Comparing full files or very different passages will average the correction across all their spectral differences, producing generic results.</li>
       <li><strong>Experiment with noise floor trade-offs.</strong> The SNR (Signal-to-Noise Ratio) setting compensates for background noise by filtering out very quiet frequency information. Higher SNR values give smoother results but may reduce fine detail; lower values capture more nuance but risk boosting noise. If the matched result sounds dull or too smooth, try a lower SNR.</li>
-      <li><strong>Control curve smoothness.</strong> The IR resolution controls how detailed the frequency response is. A gentler curve follows broad tonal trends; finer resolution captures narrow resonances and dips. Start with gentle curves, then increase resolution only if you need to address specific problem frequencies.</li>
+      <li><strong>Control curve smoothness.</strong> Open <strong>Advanced Settings</strong> and adjust <strong>Smoothing</strong> (wider = gentler curve, narrower = finer resolution that chases individual resonances). For low-frequency detail, increase <strong>Filter Taps</strong> — longer IRs resolve the bass region more precisely. Start with 1/3 octave smoothing and 1024 taps, then refine.</li>
     </ul>`,
   },
 ];
