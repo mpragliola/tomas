@@ -84,15 +84,15 @@ export function useSpectrumPlot(
     const theme = getTheme();
     if (theme === 'retro') {
       return {
-        liveStroke: 'rgba(68, 255, 68, 0.9)',
-        liveFill: 'rgba(33, 100, 33, 0.25)',
-        averageStroke: 'rgba(51, 255, 51, 0.8)',
-        differenceFill: 'rgba(50, 150, 50, 0.2)',
-        spectrumA: 'rgba(51, 255, 51, 0.9)',
-        spectrumB: 'rgba(68, 221, 68, 0.9)',
-        irStroke: 'rgba(100, 200, 100, 0.7)',
-        irFill: 'rgba(80, 180, 80, 0.15)',
-        eqStroke: 'rgba(80, 220, 80, 0.8)',
+        liveStroke: 'rgba(68, 255, 68, 0.95)',
+        liveFill: 'rgba(30, 80, 30, 0.35)',
+        averageStroke: 'rgba(51, 255, 51, 0.85)',
+        differenceFill: 'rgba(40, 120, 40, 0.3)',
+        spectrumA: 'rgba(51, 255, 51, 0.95)',
+        spectrumB: 'rgba(34, 153, 34, 0.9)',
+        irStroke: 'rgba(85, 170, 85, 0.8)',
+        irFill: 'rgba(60, 140, 60, 0.2)',
+        eqStroke: 'rgba(100, 200, 100, 0.85)',
       };
     }
     // Default dark theme colors

@@ -152,7 +152,7 @@
   --color-text-secondary: #229922;
   --color-accent: #66FF66;
   --color-spectrum-a: #33FF33;
-  --color-spectrum-b: #44DD44;
+  --color-spectrum-b: #229922;
   --color-border: #114411;
   --color-success: #44FF44;
   --color-error: #005500;
@@ -270,6 +270,65 @@
 
 :root[data-theme="retro"] .action-button:disabled {
   color: #004400 !important;
+}
+
+/* Retro playback controls — dark text on accent green */
+:root[data-theme="retro"] .ab-btn {
+  color: #001100 !important;
+  border-color: #114411 !important;
+}
+
+:root[data-theme="retro"] .ab-btn:hover:not(:disabled) {
+  border-color: #33FF33 !important;
+  background-color: rgba(51, 255, 51, 0.1) !important;
+}
+
+:root[data-theme="retro"] .ab-btn.active {
+  background-color: #66FF66 !important;
+  border-color: #33FF33 !important;
+  color: #001100 !important;
+}
+
+:root[data-theme="retro"] .btn-play {
+  background-color: #66FF66 !important;
+  color: #001100 !important;
+  border: none !important;
+}
+
+:root[data-theme="retro"] .btn-play:hover {
+  filter: brightness(1.15) !important;
+}
+
+:root[data-theme="retro"] .btn-play.playing {
+  background-color: #44DD44 !important;
+  color: #001100 !important;
+}
+
+:root[data-theme="retro"] .btn-loop {
+  border-color: #114411 !important;
+  color: #33FF33 !important;
+}
+
+:root[data-theme="retro"] .btn-loop:hover {
+  border-color: #33FF33 !important;
+  background-color: rgba(51, 255, 51, 0.1) !important;
+}
+
+:root[data-theme="retro"] .btn-loop.active {
+  background-color: #66FF66 !important;
+  border-color: #33FF33 !important;
+  color: #001100 !important;
+}
+
+/* Retro icons — bright green with glow */
+:root[data-theme="retro"] svg {
+  color: inherit;
+  filter: drop-shadow(0 0 2px currentColor);
+}
+
+:root[data-theme="retro"] .feather-icon {
+  color: #33FF33;
+  filter: drop-shadow(0 0 2px rgba(51, 255, 51, 0.6));
 }
 
 /* Retro sliders — green track with glowing thumb */
