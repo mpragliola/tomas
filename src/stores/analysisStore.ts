@@ -22,6 +22,18 @@ import { AudioRecorder } from '../services/audio/recorder';
 import { measureHeadroomTrim } from '../services/audio/headroom';
 
 export const useAnalysisStore = defineStore('analysis', () => {
+  /**
+   * User-facing counterpart to `logger.error` — the log line carries the technical
+   * context, this carries a short plain-language message for a toast. Only set at
+   * outer call sites (not nested/rethrowing catches) so one failure surfaces once.
+   */
+  let errorIdCounter = 0;
+  const lastError = ref<{ id: number; message: string } | null>(null);
+  function reportError(context: string, error: unknown, userMessage: string): void {
+    logger.error('analysisStore', context, { error: String(error) });
+    lastError.value = { id: ++errorIdCounter, message: userMessage };
+  }
+
   const audioBuffers = ref({ A: new Float32Array(), B: new Float32Array() });
   // Untouched copies, so peak normalization stays reversible
   const sourceBuffers = ref({ A: new Float32Array(), B: new Float32Array() });
@@ -158,7 +170,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
       await computeSpectra(fftConfig.value, slot);
       logger.info('analysisStore', `Spectrum auto-computed for ${slot}`);
     } catch (error) {
-      logger.error('analysisStore', `Auto-compute failed for ${slot}`, { error: String(error) });
+      reportError(`Auto-compute failed for ${slot}`, error, `Couldn't analyze wave ${slot} — try loading the file again.`);
     } finally {
       isAutoComputing.value = false;
     }
@@ -523,7 +535,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
       try {
         await computeToneMatchIR(toneMatchConfig.value);
       } catch (error) {
-        logger.error('analysisStore', 'setToneMatchConfig recompute failed', { error: String(error) });
+        reportError('setToneMatchConfig recompute failed', error, "Couldn't update the impulse response with the new settings.");
       }
     }, 300);
   }
@@ -539,7 +551,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
         if (spectra.value.A) await computeSpectra(fftConfig.value, 'A');
         if (spectra.value.B) await computeSpectra(fftConfig.value, 'B');
       } catch (error) {
-        logger.error('analysisStore', 'setFFTConfig recompute failed', { error: String(error) });
+        reportError('setFFTConfig recompute failed', error, "Couldn't recompute the spectrum with the new FFT settings.");
       }
     }, 300);
   }
@@ -558,7 +570,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
           // reset the filter length back to the default under the user.
           await computeToneMatchIR(toneMatchConfig.value);
         } catch (error) {
-          logger.error('analysisStore', 'Auto IR recompute failed', { error: String(error) });
+          reportError('Auto IR recompute failed', error, "Couldn't derive the impulse response.");
         }
       }, 100);
     },
@@ -1036,6 +1048,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     analysers,
     playheads,
     isAutoComputing,
+    lastError,
     recorder,
     recordingSlot,
     loadFile,
