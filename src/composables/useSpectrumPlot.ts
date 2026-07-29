@@ -76,6 +76,39 @@ export function useSpectrumPlot(
    */
   let plotBusy = false;
 
+  function getTheme(): string {
+    return document.documentElement.getAttribute('data-theme') || 'dark';
+  }
+
+  function getColorPalette() {
+    const theme = getTheme();
+    if (theme === 'retro') {
+      return {
+        liveStroke: 'rgba(68, 255, 68, 0.9)',
+        liveFill: 'rgba(33, 100, 33, 0.25)',
+        averageStroke: 'rgba(51, 255, 51, 0.8)',
+        differenceFill: 'rgba(50, 150, 50, 0.2)',
+        spectrumA: 'rgba(51, 255, 51, 0.9)',
+        spectrumB: 'rgba(68, 221, 68, 0.9)',
+        irStroke: 'rgba(100, 200, 100, 0.7)',
+        irFill: 'rgba(80, 180, 80, 0.15)',
+        eqStroke: 'rgba(80, 220, 80, 0.8)',
+      };
+    }
+    // Default dark theme colors
+    return {
+      liveStroke: 'rgba(74, 222, 128, 0.9)',
+      liveFill: 'rgba(34, 197, 94, 0.18)',
+      averageStroke: 'rgba(74, 222, 128, 0.9)',
+      differenceFill: 'rgba(234, 179, 8, 0.25)',
+      spectrumA: '#2563EB',
+      spectrumB: '#FF9500',
+      irStroke: 'rgba(139, 92, 246, 0.55)',
+      irFill: 'rgba(139, 92, 246, 0.12)',
+      eqStroke: 'rgba(6, 214, 160, 0.8)',
+    };
+  }
+
   function scheduleUpdate(): void {
     if (updateQueued) return;
     updateQueued = true;
@@ -189,7 +222,7 @@ export function useSpectrumPlot(
           visible: isShown('live'),
           line: { width: 0, shape: 'spline', smoothing: 0.6 },
           fill: 'tonexty',
-          fillcolor: 'rgba(34, 197, 94, 0.18)',
+          fillcolor: getColorPalette().liveFill,
           hovertemplate: '<b>Live</b><br>%{x:.1f}Hz<br>%{y:.1f}dB<extra></extra>',
         });
 
@@ -203,7 +236,7 @@ export function useSpectrumPlot(
           mode: 'lines',
           showlegend: false,
           visible: isShown('live'),
-          line: { color: 'rgba(74, 222, 128, 0.9)', width: 1.5, shape: 'spline', smoothing: 0.6 },
+          line: { color: getColorPalette().averageStroke, width: 1.5, shape: 'spline', smoothing: 0.6 },
           hoverinfo: 'skip',
         });
 
@@ -220,7 +253,7 @@ export function useSpectrumPlot(
           visible: isShown('live'),
           line: { color: 'transparent' },
           fill: 'tonexty',
-          fillcolor: 'rgba(234, 179, 8, 0.25)',
+          fillcolor: getColorPalette().differenceFill,
           hoverinfo: 'skip',
         });
       }
@@ -234,7 +267,7 @@ export function useSpectrumPlot(
           name: 'Spectrum A',
           meta: 'A',
           visible: isShown('A'),
-          line: { color: '#2563EB', width: 1 },
+          line: { color: getColorPalette().spectrumA, width: 1 },
           hovertemplate: '<b>A</b><br>%{x:.1f}Hz<br>%{y:.1f}dB<extra></extra>',
         });
       }
@@ -248,7 +281,7 @@ export function useSpectrumPlot(
           name: 'Spectrum B',
           meta: 'B',
           visible: isShown('B'),
-          line: { color: '#FF9500', width: 1 },
+          line: { color: getColorPalette().spectrumB, width: 1 },
           hovertemplate: '<b>B</b><br>%{x:.1f}Hz<br>%{y:.1f}dB<extra></extra>',
         });
       }
@@ -266,9 +299,9 @@ export function useSpectrumPlot(
           meta: 'IR',
           visible: isShown('IR'),
           yaxis: 'y2',
-          line: { color: 'rgba(139, 92, 246, 0.55)', width: 1 },
+          line: { color: getColorPalette().irStroke, width: 1 },
           fill: 'tozeroy',
-          fillcolor: 'rgba(139, 92, 246, 0.12)',
+          fillcolor: getColorPalette().irFill,
           hovertemplate: '<b>IR</b><br>%{x:.1f}Hz<br>%{y:+.1f}dB<extra></extra>',
         });
 
@@ -286,7 +319,7 @@ export function useSpectrumPlot(
             meta: 'graphicEQ',
             visible: isShown('graphicEQ'),
             yaxis: 'y2',
-            line: { color: 'rgba(6, 214, 160, 0.8)', width: 1, dash: 'dot' },
+            line: { color: getColorPalette().eqStroke, width: 1, dash: 'dot' },
             hovertemplate: '<b>Graphic EQ</b><br>%{x:.1f}Hz<br>%{y:+.1f}dB<extra></extra>',
           });
         }
