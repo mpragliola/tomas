@@ -3,7 +3,7 @@
 // only — there's no OS equivalent for them). $sepia/$earth default to
 // $light/$dark so existing call sites that only care about light vs. dark
 // don't need to change.
-@mixin themed($property, $light, $dark, $sepia: $light, $earth: $dark) {
+@mixin themed($property, $light, $dark, $sepia: $light, $earth: $dark, $retro: $dark) {
   #{$property}: $dark;
 
   @media (prefers-color-scheme: light) {
@@ -15,6 +15,7 @@
     'dark': $dark,
     'sepia': $sepia,
     'earth': $earth,
+    'retro': $retro,
   );
 
   @each $theme, $value in $theme-values {
