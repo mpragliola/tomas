@@ -4,19 +4,54 @@
       <label class="section-title">Playback</label>
     </div>
 
-    <div v-if="!store.convolved || store.convolved.length === 0" class="empty-state">
-      <p>Apply IR to enable playback</p>
+    <div v-if="!hasAudio" class="empty-state">
+      <p>Load a sound to enable playback</p>
     </div>
 
     <div v-else class="playback-content">
-      <!-- Play Button -->
-      <button
-        :class="['btn-play', { playing: isPlaying }]"
-        @click="togglePlayback"
-      >
-        <span v-if="!isPlaying">▶ Play</span>
-        <span v-else>⏸ Pause</span>
-      </button>
+      <!-- Source switch: A/B share a playhead, C runs on its own -->
+      <div class="ab-switch">
+        <button
+          type="button"
+          :class="['ab-btn', { active: activeMode === 'original' }]"
+          title="Play the working sound untouched"
+          @click="selectMode('original')"
+        >A · Original</button>
+        <button
+          type="button"
+          :class="['ab-btn', { active: activeMode === 'processed' }]"
+          :disabled="!hasIR"
+          :title="hasIR ? 'Play the working sound through the derived IR' : 'Load a reference to derive an IR'"
+          @click="selectMode('processed')"
+        >B · Processed</button>
+        <button
+          type="button"
+          :class="['ab-btn', { active: activeMode === 'reference' }]"
+          :disabled="!hasReference"
+          :title="hasReference ? 'Play the reference file' : 'No reference loaded'"
+          @click="selectMode('reference')"
+        >C · Reference</button>
+      </div>
+
+      <!-- Transport -->
+      <div class="transport-row">
+        <button
+          :class="['btn-play', { playing: isPlaying }]"
+          @click="togglePlayback"
+        >
+          <Icon v-if="!isPlaying" name="play" size="18" />
+          <Icon v-else name="pause" size="18" />
+          <span>{{ isPlaying ? 'Pause' : 'Play' }}</span>
+        </button>
+        <button
+          type="button"
+          :class="['btn-loop', { active: isLooping }]"
+          :title="isLooping ? 'Looping — click to stop' : 'Loop selection'"
+          @click="toggleLoop"
+        >
+          <Icon name="repeat" size="16" />
+        </button>
+      </div>
 
       <!-- Volume Control -->
       <div class="control-row">
@@ -25,142 +60,120 @@
           type="range"
           min="0"
           max="1"
-          step="0.05"
+          :step="VOLUME_STEP"
           v-model.number="volume"
           class="slider"
-          @change="updateVolume"
+          @input="updateVolume"
+          @wheel.prevent="nudgeVolume"
         />
         <span class="value">{{ (volume * 100).toFixed(0) }}%</span>
       </div>
 
-      <!-- Progress Bar -->
-      <div class="progress-section">
-        <div class="progress-bar">
-          <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
+      <!-- Live FFT Size -->
+      <div class="control-row">
+        <div class="label-with-tooltip">
+          <label class="value-label">Live FFT</label>
+          <TooltipIcon text="FFT window size for the live spectrum display during playback. Larger = better frequency resolution, higher latency." />
         </div>
-        <div class="time-display">
-          <span class="current-time">{{ formatTime(currentTime) }}</span>
+        <select v-model.number="store.liveFFTSize" class="input-select">
+          <option value="512">512 (~12ms)</option>
+          <option value="1024">1024 (~23ms)</option>
+          <option value="2048">2048 (~46ms)</option>
+          <option value="4096">4096 (~93ms)</option>
+          <option value="8192">8192 (~186ms)</option>
+          <option value="16384">16384 (~372ms)</option>
+        </select>
+      </div>
+
+      <!-- Readout only — the waveform above is the scrub surface -->
+      <div class="time-display">
+        <span>
+          <span class="current-time">{{ formatTimeSecs(currentTime) }}</span>
           <span class="separator">/</span>
-          <span class="total-time">{{ formatTime(totalTime) }}</span>
-        </div>
+          <span class="total-time">{{ formatTimeSecs(totalTime) }}</span>
+        </span>
+        <span class="seek-hint">click waveform {{ activeSlot }} to seek</span>
       </div>
 
       <!-- Status -->
-      <div v-if="statusMessage" class="status">
-        {{ statusMessage }}
-      </div>
+      <Transition name="fade-rise">
+        <div v-if="statusMessage" class="status">
+          {{ statusMessage }}
+        </div>
+      </Transition>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue';
+import { ref } from 'vue';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { logger } from '../services/logging';
+import Icon from './Icon.vue';
+import TooltipIcon from './TooltipIcon.vue';
+import { usePlayback } from '../composables/usePlayback';
+import { formatTimeSecs } from '../utils/audioFormat';
+
+const VOLUME_STEP = 0.05;
 
 const store = useAnalysisStore();
-const isPlaying = ref(false);
-const volume = ref(0.8);
-const currentTime = ref(0);
-const statusMessage = ref('');
-let animationFrameId: number | null = null;
+const volume = ref(store.playbackVolume);
 
-const totalTime = computed(() => {
-  if (!store.convolved || store.convolved.length === 0) return 0;
-  const sampleRate = 44100;
-  return store.convolved.length / sampleRate;
-});
+const {
+  isPlaying,
+  isLooping,
+  statusMessage,
+  activeMode,
+  activeSlot,
+  currentTime,
+  totalTime,
+  hasAudio,
+  hasReference,
+  hasIR,
+  togglePlayback: _togglePlayback,
+  selectMode,
+  toggleLoop,
+} = usePlayback();
 
-const progressPercent = computed(() => {
-  if (totalTime.value === 0) return 0;
-  return (currentTime.value / totalTime.value) * 100;
-});
-
-onUnmounted(() => {
-  if (isPlaying.value) {
-    stopPlayback();
-  }
-  if (animationFrameId !== null) {
-    cancelAnimationFrame(animationFrameId);
-  }
-});
-
-function formatTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = (seconds % 60).toFixed(1);
-  return `${mins}:${Number(secs) < 10 ? '0' : ''}${secs}`;
+function togglePlayback(): Promise<void> {
+  return _togglePlayback(volume.value);
 }
 
-async function togglePlayback(): Promise<void> {
-  if (isPlaying.value) {
-    stopPlayback();
-  } else {
-    await startPlayback();
-  }
-}
-
-async function startPlayback(): Promise<void> {
-  if (!store.convolved || store.convolved.length === 0) {
-    statusMessage.value = 'No audio to play';
-    return;
-  }
-
-  try {
-    isPlaying.value = true;
-    currentTime.value = 0;
-    statusMessage.value = 'Playing...';
-
-    await store.playback(volume.value);
-
-    // Simulate playback progress
-    const sampleRate = 44100;
-    const startTime = Date.now();
-
-    const updateProgress = () => {
-      if (!isPlaying.value) return;
-
-      const elapsed = (Date.now() - startTime) / 1000;
-      currentTime.value = Math.min(elapsed, totalTime.value);
-
-      if (currentTime.value >= totalTime.value) {
-        stopPlayback();
-      } else {
-        animationFrameId = requestAnimationFrame(updateProgress);
-      }
-    };
-
-    animationFrameId = requestAnimationFrame(updateProgress);
-    logger.info('PlaybackPanel', 'Playback started', { volume: volume.value });
-  } catch (error) {
-    logger.error('PlaybackPanel', 'Playback failed', { error: String(error) });
-    statusMessage.value = 'Playback error';
-    isPlaying.value = false;
-  }
-}
-
-function stopPlayback(): void {
-  isPlaying.value = false;
-  store.stopPlayback();
-
-  if (animationFrameId !== null) {
-    cancelAnimationFrame(animationFrameId);
-    animationFrameId = null;
-  }
-
-  statusMessage.value = '';
-  logger.info('PlaybackPanel', 'Playback stopped');
-}
-
+// The gain node stays in the graph for the whole take, so this lands on what is already
+// sounding — no restart, and no waiting for the next Play for the fader to mean anything
 function updateVolume(): void {
+  store.setVolume(volume.value);
   logger.debug('PlaybackPanel', 'Volume changed', { volume: volume.value });
+}
+
+/**
+ * Wheel over the slider moves it by one step, so wheel, drag and arrow keys all land on
+ * the same values. The page must not scroll under the cursor while doing it, hence the
+ * .prevent on the handler.
+ */
+function nudgeVolume(event: WheelEvent): void {
+  const delta = event.deltaY !== 0 ? -event.deltaY : event.deltaX;
+  if (delta === 0) return;
+  const raw = volume.value + Math.sign(delta) * VOLUME_STEP;
+  // Accumulating 0.05 in binary drifts (0.35000000000000003), which the slider then
+  // refuses to snap to — round back onto the step grid every time.
+  const next = Math.min(1, Math.max(0, Math.round(raw / VOLUME_STEP) * VOLUME_STEP));
+  if (next === volume.value) return;
+  volume.value = next;
+  updateVolume();
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+@use '../styles/variables' as *;
+@use '../styles/mixins' as *;
+
+$gap: 12px;
+
 .playback-panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: $gap;
 }
 
 .section-header {
@@ -170,11 +183,7 @@ function updateVolume(): void {
 }
 
 .section-title {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  @include caps-label;
 }
 
 .empty-state {
@@ -183,91 +192,130 @@ function updateVolume(): void {
   justify-content: center;
   height: 150px;
   color: var(--color-text-secondary);
-  font-size: 14px;
+  font-size: var(--font-size-base);
 }
 
 .playback-content {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: $gap;
+}
+
+.ab-switch {
+  display: flex;
+  gap: 4px;
+}
+
+.ab-btn {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover:not(:disabled) { border-color: var(--color-accent); }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  &.active {
+    background-color: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-accent-text);
+  }
+}
+
+.transport-row {
+  display: flex;
+  gap: 8px;
 }
 
 .btn-play {
+  flex: 1;
   padding: 10px;
   border: none;
   border-radius: var(--radius-lg);
   background-color: var(--color-accent);
-  color: white;
-  font-size: 14px;
+  color: var(--color-accent-text);
+  font-size: var(--font-size-base);
   font-weight: 600;
   cursor: pointer;
-  transition: all 150ms;
+  transition: all $transition-fast;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+
+  &:hover { filter: brightness(1.1); }
+
+  &.playing { background-color: var(--color-warning); }
 }
 
-.btn-play:hover {
-  filter: brightness(1.1);
-}
+.btn-loop {
+  flex-shrink: 0;
+  width: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all $transition-fast;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
-.btn-play.playing {
-  background-color: #FF9500;
+  &:hover { border-color: var(--color-accent); }
+
+  &.active {
+    background-color: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-accent-text);
+  }
 }
 
 .control-row {
   display: flex;
   align-items: center;
   gap: 6px;
-}
 
-.control-row input[type="range"] {
-  flex: 1;
+  input[type="range"] { flex: 1; }
 }
 
 .value-label {
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  @include caps-label(10px);
+  min-width: 50px;
+}
+
+.label-with-tooltip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   min-width: 50px;
 }
 
 .value {
-  font-family: var(--font-mono);
-  font-size: 11px;
+  font-family: var(--font-body);
+  font-size: var(--font-size-label);
   color: var(--color-accent);
   min-width: 35px;
   text-align: right;
-}
-
-.progress-section {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.progress-bar {
-  height: 4px;
-  background-color: var(--color-border);
-  border-radius: 2px;
-  overflow: hidden;
-  cursor: pointer;
-}
-
-.progress-fill {
-  height: 100%;
-  background-color: var(--color-accent);
-  transition: width 50ms linear;
 }
 
 .time-display {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 10px;
-  font-family: var(--font-mono);
+  font-size: var(--font-size-label);
+  font-family: var(--font-body);
   color: var(--color-text-secondary);
 }
 
@@ -276,18 +324,62 @@ function updateVolume(): void {
   font-weight: 600;
 }
 
-.separator {
-  margin: 0 4px;
+.separator { margin: 0 4px; }
+
+.seek-hint {
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.input-select {
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-label);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: border-color $transition-fast;
+
+  &:hover { border-color: var(--color-text-secondary); }
+  &:focus {
+    outline: none;
+    border-color: var(--color-accent);
+  }
 }
 
 .status {
   padding: 6px 8px;
   border-radius: var(--radius-sm);
-  background-color: rgba(37, 99, 235, 0.1);
+  background-color: color-mix(in srgb, var(--color-accent) 10%, transparent);
   border: 1px solid var(--color-accent);
   color: var(--color-accent);
-  font-size: 10px;
+  font-size: var(--font-size-label);
   text-align: center;
   font-weight: 500;
+}
+
+.fade-rise-enter-active {
+  animation: slideIn $transition-base ease-out;
+}
+
+.fade-rise-leave-active {
+  transition: opacity $transition-fast;
+}
+
+.fade-rise-leave-to {
+  opacity: 0;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

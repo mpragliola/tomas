@@ -1,168 +1,116 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { parseWavFile } from '../../src/services/audio/wavParser';
-import { computeFFT } from '../../src/services/audio/fftProcessor';
+import { computeFFT, computeAveragedFFT } from '../../src/services/audio/fftProcessor';
 import { extractSpectrum } from '../../src/services/dsp/spectrum';
-import { deriveIR } from '../../src/services/dsp/irDerivation';
+import { deriveToneMatchIR } from '../../src/services/dsp/irDerivation';
 import { convolveAudio } from '../../src/services/audio/convolution';
+import { DEFAULT_FFT_CONFIG, DEFAULT_TONE_MATCH_CONFIG } from '../../src/services/dsp/defaults';
 import type { FFTConfig } from '../../src/types/spectrum';
-import type { IRDerivationConfig } from '../../src/types/ir';
+import { loadSamples } from '../fixtures';
+
+/**
+ * The core flow on flat broadband material: `white-noise.wav` is the working take and
+ * `white-noise-eq.wav` is the same noise through `targetCurveDb`, so the IR has an exact
+ * job to do and the convolved result has an exact target to land on.
+ */
+
+const SAMPLE_RATE = 48000;
 
 describe('Audio Processing Pipeline', () => {
   let audioA: Float32Array;
   let audioB: Float32Array;
+  let toneA: Float32Array;
 
   beforeAll(async () => {
-    // Create test audio: sine waves at different frequencies
-    const sampleRate = 44100;
-    const duration = 1; // 1 second
-    const numSamples = sampleRate * duration;
-
-    // Audio A: 440 Hz sine (A4 note)
-    audioA = new Float32Array(numSamples);
-    for (let i = 0; i < numSamples; i++) {
-      audioA[i] = Math.sin((2 * Math.PI * 440 * i) / sampleRate) * 0.8;
-    }
-
-    // Audio B: 880 Hz sine (A5 note, one octave higher)
-    audioB = new Float32Array(numSamples);
-    for (let i = 0; i < numSamples; i++) {
-      audioB[i] = Math.sin((2 * Math.PI * 880 * i) / sampleRate) * 0.8;
-    }
+    [audioA, audioB, toneA] = await Promise.all([
+      loadSamples('white-noise'),
+      loadSamples('white-noise-eq'),
+      loadSamples('sine-1k'),
+    ]);
   });
 
-  it('should compute FFT and extract spectra', () => {
-    const config: FFTConfig = {
-      fftSize: 2048,
-      window: 'hann',
-      overlap: 0.5,
-    };
+  it('computes an FFT with the expected bin layout', () => {
+    const config: FFTConfig = { fftSize: 2048, window: 'hann', overlap: 0.5 };
+    const fft = computeFFT(toneA.slice(0, 2048), config, SAMPLE_RATE);
 
-    const fftA = computeFFT(audioA.slice(0, 2048), config);
-    const fftB = computeFFT(audioB.slice(0, 2048), config);
+    expect(fft.magnitudes.length).toBe(1024);
+    expect(fft.frequencies.length).toBe(1024);
 
-    expect(fftA.magnitudes.length).toBe(1024);
-    expect(fftB.magnitudes.length).toBe(1024);
-    expect(fftA.frequencies.length).toBe(1024);
-
-    // Audio A and B should have peaks (just verify magnitude is reasonable)
-    const maxIdxA = Array.from(fftA.magnitudes).indexOf(Math.max(...fftA.magnitudes));
-    const peakMagA = fftA.magnitudes[maxIdxA];
-    expect(peakMagA).toBeGreaterThan(0.1); // Should have a strong peak
-
-    const maxIdxB = Array.from(fftB.magnitudes).indexOf(Math.max(...fftB.magnitudes));
-    const peakMagB = fftB.magnitudes[maxIdxB];
-    expect(peakMagB).toBeGreaterThan(0.1); // Should have a strong peak
+    // A 0.5-amplitude sine should land near 0.25 in the peak bin (half the amplitude goes
+    // to the negative-frequency image, and Hann's coherent gain of 0.5 doubles what the
+    // normalisation divides out), i.e. the normalisation is amplitude-correct.
+    const peakBin = fft.magnitudes.indexOf(Math.max(...fft.magnitudes));
+    const binWidth = SAMPLE_RATE / 2048;
+    expect(Math.abs(fft.frequencies[peakBin] - 1000)).toBeLessThanOrEqual(binWidth);
+    expect(fft.magnitudes[peakBin]).toBeGreaterThan(0.2);
+    expect(fft.magnitudes[peakBin]).toBeLessThan(0.3);
   });
 
-  it('should extract spectra with dB conversion', () => {
-    const config: FFTConfig = {
-      fftSize: 2048,
-      window: 'hann',
-      overlap: 0.5,
-    };
+  it('extracts spectra with dB conversion', () => {
+    const config: FFTConfig = { fftSize: 2048, window: 'hann', overlap: 0.5 };
+    const spectrum = extractSpectrum(computeFFT(toneA.slice(0, 2048), config, SAMPLE_RATE));
 
-    const fftA = computeFFT(audioA.slice(0, 2048), config);
-    const spectrumA = extractSpectrum(fftA);
-
-    expect(spectrumA.magnitudesDb.length).toBe(1024);
-    expect(spectrumA.magnitudesDb[0]).toBeLessThan(0); // dB should be negative
-    expect(Math.max(...spectrumA.magnitudesDb)).toBeGreaterThan(-40); // Peak should be strong
+    expect(spectrum.magnitudesDb.length).toBe(1024);
+    expect(Math.max(...spectrum.magnitudesDb)).toBeGreaterThan(-40);
   });
 
-  it('should derive IR from two spectra', () => {
-    const config: FFTConfig = {
-      fftSize: 2048,
-      window: 'hann',
-      overlap: 0.5,
-    };
+  it('derives a tone-match IR of the requested tap count', () => {
+    const spectrumA = extractSpectrum(computeAveragedFFT(audioA, DEFAULT_FFT_CONFIG, SAMPLE_RATE));
+    const spectrumB = extractSpectrum(computeAveragedFFT(audioB, DEFAULT_FFT_CONFIG, SAMPLE_RATE));
 
-    const fftA = computeFFT(audioA.slice(0, 2048), config);
-    const fftB = computeFFT(audioB.slice(0, 2048), config);
+    const ir = deriveToneMatchIR(spectrumA, spectrumB, SAMPLE_RATE, DEFAULT_TONE_MATCH_CONFIG);
 
-    const spectrumA = extractSpectrum(fftA);
-    const spectrumB = extractSpectrum(fftB);
-
-    const irConfig: IRDerivationConfig = {
-      method: 'difference',
-      phase: 'preserve-B',
-      maxLength: 44100,
-      truncationDb: -60,
-    };
-
-    const ir = deriveIR(spectrumA, spectrumB, irConfig);
-
-    expect(ir.coefficients.length).toBeGreaterThan(0);
-    expect(ir.length).toBeLessThanOrEqual(44100);
-    expect(ir.sampleRate).toBe(44100);
+    expect(ir.coefficients.length).toBe(DEFAULT_TONE_MATCH_CONFIG.taps);
+    expect(ir.sampleRate).toBe(SAMPLE_RATE);
+    for (const value of ir.coefficients) expect(Number.isFinite(value)).toBe(true);
   });
 
-  it('should convolve audio with IR', () => {
-    const config: FFTConfig = {
-      fftSize: 2048,
-      window: 'hann',
-      overlap: 0.5,
-    };
+  it('full pipeline: A + B -> IR -> convolved output matches B more closely than A did', () => {
+    const spectrumOf = (signal: Float32Array) =>
+      extractSpectrum(computeAveragedFFT(signal, DEFAULT_FFT_CONFIG, SAMPLE_RATE));
 
-    const fftA = computeFFT(audioA.slice(0, 2048), config);
-    const fftB = computeFFT(audioB.slice(0, 2048), config);
+    const spectrumA = spectrumOf(audioA);
+    const spectrumB = spectrumOf(audioB);
 
-    const spectrumA = extractSpectrum(fftA);
-    const spectrumB = extractSpectrum(fftB);
+    const ir = deriveToneMatchIR(spectrumA, spectrumB, SAMPLE_RATE, DEFAULT_TONE_MATCH_CONFIG);
 
-    const irConfig: IRDerivationConfig = {
-      method: 'difference',
-      phase: 'preserve-B',
-      maxLength: 1000,
-      truncationDb: -60,
-    };
-
-    const ir = deriveIR(spectrumA, spectrumB, irConfig);
-
-    const convolved = convolveAudio({
+    const matched = convolveAudio({
       irCoefficients: ir.coefficients,
       audioData: audioA,
-      sampleRate: 44100,
+      sampleRate: SAMPLE_RATE,
     });
 
-    expect(convolved.length).toBeGreaterThan(0);
-    // Check that output is normalized to [-1, 1]
-    const maxVal = Math.max(...Array.from(convolved).map(Math.abs));
-    expect(maxVal).toBeLessThanOrEqual(1.0);
-  });
+    expect(matched.length).toBe(audioA.length + ir.coefficients.length - 1);
+    for (let i = 0; i < matched.length; i += 977) {
+      expect(Number.isFinite(matched[i])).toBe(true);
+    }
 
-  it('full pipeline: audio A + audio B -> IR -> convolved output', () => {
-    const fftConfig: FFTConfig = {
-      fftSize: 2048,
-      window: 'hann',
-      overlap: 0.5,
+    const spectrumMatched = spectrumOf(matched);
+
+    // Shape error over the match band, level difference removed.
+    const shapeError = (
+      x: ReturnType<typeof spectrumOf>,
+      y: ReturnType<typeof spectrumOf>,
+    ): number => {
+      const bins: number[] = [];
+      for (let i = 0; i < x.frequencies.length; i++) {
+        if (x.frequencies[i] >= 100 && x.frequencies[i] <= 8000) bins.push(i);
+      }
+      const mean = (s: ReturnType<typeof spectrumOf>) =>
+        bins.reduce((sum, i) => sum + s.magnitudesDb[i], 0) / bins.length;
+      const meanX = mean(x);
+      const meanY = mean(y);
+      return (
+        bins.reduce(
+          (sum, i) => sum + Math.abs(x.magnitudesDb[i] - meanX - (y.magnitudesDb[i] - meanY)),
+          0,
+        ) / bins.length
+      );
     };
 
-    // Step 1: Compute spectra
-    const fftA = computeFFT(audioA.slice(0, 2048), fftConfig);
-    const fftB = computeFFT(audioB.slice(0, 2048), fftConfig);
+    const before = shapeError(spectrumA, spectrumB);
+    const after = shapeError(spectrumMatched, spectrumB);
 
-    const spectrumA = extractSpectrum(fftA);
-    const spectrumB = extractSpectrum(fftB);
-
-    // Step 2: Derive IR
-    const irConfig: IRDerivationConfig = {
-      method: 'ratio',
-      phase: 'preserve-B',
-      maxLength: 1000,
-      truncationDb: -60,
-    };
-
-    const ir = deriveIR(spectrumA, spectrumB, irConfig);
-
-    // Step 3: Convolve
-    const convolved = convolveAudio({
-      irCoefficients: ir.coefficients,
-      audioData: audioA,
-      sampleRate: 44100,
-    });
-
-    // Verify output
-    expect(convolved.length).toBeGreaterThan(0);
-    expect(Math.max(...Array.from(convolved).map(Math.abs))).toBeLessThanOrEqual(1.0);
+    expect(after).toBeLessThan(before / 4);
+    expect(after).toBeLessThan(1.5);
   });
 });

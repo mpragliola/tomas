@@ -65,6 +65,10 @@ export async function parseWavFile(file: File): Promise<AudioBuffer> {
 
   // Mix stereo to mono if needed
   const monoAudio = channels > 1 ? stereoToMono(audioData, numSamples, channels) : audioData;
+  // …and keep the channels themselves, which is what analysis reads. The mixdown above is
+  // for the waveform and the transport only.
+  const channelData =
+    channels > 1 ? deinterleave(audioData, numSamples, channels) : [audioData];
 
   logger.info('wavParser', 'WAV file parsed', {
     fileName: file.name,
@@ -76,9 +80,27 @@ export async function parseWavFile(file: File): Promise<AudioBuffer> {
   });
 
   return {
-    header: { ...header, channels: 1 }, // Always return mono
+    header: { ...header, channels: 1 }, // audioData is always mono
     audioData: monoAudio,
+    channels: channelData,
   };
+}
+
+/** Interleaved frames to one array per channel. */
+function deinterleave(
+  interleaved: Float32Array,
+  numSamples: number,
+  channels: number,
+): Float32Array[] {
+  const out: Float32Array[] = [];
+  for (let ch = 0; ch < channels; ch++) {
+    const channel = new Float32Array(numSamples);
+    for (let i = 0; i < numSamples; i++) {
+      channel[i] = interleaved[i * channels + ch];
+    }
+    out.push(channel);
+  }
+  return out;
 }
 
 function findChunk(view: DataView, chunkId: string): number {

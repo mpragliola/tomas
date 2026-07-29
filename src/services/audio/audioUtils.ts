@@ -1,7 +1,10 @@
+// Periodic (DFT-even) form — divisor is `length`, not `length - 1`. The symmetric form
+// is for filter design; for spectral analysis it biases the window by one sample and
+// breaks constant-overlap-add.
 export function hannWindow(length: number): Float32Array {
   const window = new Float32Array(length);
   for (let i = 0; i < length; i++) {
-    window[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (length - 1)));
+    window[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / length));
   }
   return window;
 }
@@ -9,13 +12,17 @@ export function hannWindow(length: number): Float32Array {
 export function hammingWindow(length: number): Float32Array {
   const window = new Float32Array(length);
   for (let i = 0; i < length; i++) {
-    window[i] = 0.54 - 0.46 * Math.cos((2 * Math.PI * i) / (length - 1));
+    window[i] = 0.54 - 0.46 * Math.cos((2 * Math.PI * i) / length);
   }
   return window;
 }
 
 export function normalizeAudio(signal: Float32Array): Float32Array {
-  const max = Math.max(...Array.from(signal).map(Math.abs));
+  let max = 0;
+  for (let i = 0; i < signal.length; i++) {
+    const magnitude = Math.abs(signal[i]);
+    if (magnitude > max) max = magnitude;
+  }
   if (max === 0) return signal;
 
   const normalized = new Float32Array(signal.length);
@@ -25,26 +32,10 @@ export function normalizeAudio(signal: Float32Array): Float32Array {
   return normalized;
 }
 
-export function resample(signal: Float32Array, fromRate: number, toRate: number): Float32Array {
-  if (fromRate === toRate) return signal;
-
-  const ratio = toRate / fromRate;
-  const newLength = Math.round(signal.length * ratio);
-  const resampled = new Float32Array(newLength);
-
-  for (let i = 0; i < newLength; i++) {
-    const srcIndex = i / ratio;
-    const srcIndexInt = Math.floor(srcIndex);
-    const srcIndexFrac = srcIndex - srcIndexInt;
-
-    if (srcIndexInt >= signal.length - 1) {
-      resampled[i] = signal[signal.length - 1];
-    } else {
-      const s0 = signal[srcIndexInt];
-      const s1 = signal[srcIndexInt + 1];
-      resampled[i] = s0 + (s1 - s0) * srcIndexFrac;
-    }
-  }
-
-  return resampled;
-}
+// A linear-interpolation `resample` used to live here, used only to convert the IR between
+// 44.1 and 48 kHz on export. It was removed rather than improved: linear interpolation is
+// a triangular kernel, so it lowpasses by sinc²(f·T) — 6.3 dB down at 20 kHz — and an
+// impulse response has real content right up to Nyquist. The export path now renders a
+// fresh minimum-phase filter at the target rate from the tone curve instead
+// (`renderToneMatchIR`), which is both exact and cheaper than a proper polyphase resampler
+// would have been.

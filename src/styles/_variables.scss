@@ -1,0 +1,5 @@
+// Compile-time constants. Anything that must switch at runtime (theme
+// colors) lives in global.scss's CSS custom properties instead.
+$transition-fast: 150ms;
+$transition-base: 200ms;
+$radius-pill: 999px;

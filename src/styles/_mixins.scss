@@ -1,0 +1,35 @@
+// Sets $property per theme. $light/$dark are required and also drive the
+// OS-level prefers-color-scheme fallback (sepia/earth are explicit-selection
+// only — there's no OS equivalent for them). $sepia/$earth default to
+// $light/$dark so existing call sites that only care about light vs. dark
+// don't need to change.
+@mixin themed($property, $light, $dark, $sepia: $light, $earth: $dark) {
+  #{$property}: $dark;
+
+  @media (prefers-color-scheme: light) {
+    #{$property}: $light;
+  }
+
+  $theme-values: (
+    'light': $light,
+    'dark': $dark,
+    'sepia': $sepia,
+    'earth': $earth,
+  );
+
+  @each $theme, $value in $theme-values {
+    :root[data-theme="#{$theme}"] & {
+      #{$property}: $value;
+    }
+  }
+}
+
+// Small uppercase section/field label styling, shared by section headers,
+// field labels, and metadata labels across components.
+@mixin caps-label($size: var(--font-size-label), $weight: 500, $color: var(--color-text-secondary)) {
+  font-size: $size;
+  font-weight: $weight;
+  color: $color;
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-caps);
+}

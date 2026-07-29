@@ -1,6 +1,6 @@
 # AI
 .remember
-.claude/settings.local.json
+.claude
 .playwright-mcp/
 
 # IDE
@@ -23,3 +23,4 @@ dist
 # OS
 .DS_Store
 Thumbs.db
+.worktrees/

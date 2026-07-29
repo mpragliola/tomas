@@ -1,153 +1,149 @@
 <template>
   <div class="spectrum-viewer">
     <div class="spectrum-header">
-      <h3 class="spectrum-title">Frequency Spectrum</h3>
+      <div class="spectrum-title-group">
+        <h3 class="spectrum-title">Frequency Spectrum</h3>
+        <TooltipIcon text="Shows the frequency content of your audio signals. Blue = Source A, Orange = Source B. The derived IR curve appears once computed." />
+      </div>
+      <div class="spectrum-header-actions">
+        <button
+          class="btn-expand"
+          :class="{ active: store.graphicEq.enabled }"
+          :disabled="!store.toneCurve"
+          :aria-pressed="store.graphicEq.enabled"
+          :title="
+            !store.toneCurve
+              ? 'Run a tone-match analysis first'
+              : store.graphicEq.enabled
+                ? 'Disable graphic EQ'
+                : 'Enable graphic EQ'
+          "
+          @click="store.setGraphicEqEnabled(!store.graphicEq.enabled)"
+        >
+          <Icon name="sliders" size="18" />
+        </button>
+        <button
+          class="btn-expand"
+          :title="isSpectrumExpanded ? 'Collapse spectrum' : 'Expand spectrum'"
+          :aria-label="isSpectrumExpanded ? 'Collapse spectrum viewer' : 'Expand spectrum viewer'"
+          :aria-pressed="isSpectrumExpanded"
+          @click="onToggleExpand"
+        >
+          <Icon :name="isSpectrumExpanded ? 'minimize-2' : 'maximize-2'" size="18" />
+        </button>
+      </div>
     </div>
 
     <!-- Container stays mounted so the ref is always valid; states overlay it -->
     <div class="plot-area">
       <div ref="plotContainer" class="plot-container"></div>
 
-      <div v-if="store.isAutoComputing" class="overlay loading-state">
-        <div class="spinner"></div>
-        <p>Computing spectra...</p>
-      </div>
+      <GraphicEqOverlay
+        v-if="store.graphicEq.enabled && store.toneCurve"
+        :plot-container="plotContainer"
+        :axis-range="plotAxisRange"
+      />
 
-      <div v-else-if="!store.spectra.A && !store.spectra.B" class="overlay empty-state">
-        <p>Compute spectra to display</p>
-      </div>
+      <Transition name="fade-rise">
+        <div v-if="store.isAutoComputing" class="overlay loading-state">
+          <div class="spinner"></div>
+          <p>Computing spectra...</p>
+        </div>
+        <div
+          v-else-if="!store.spectra.A && !store.spectra.B && !liveFrequencies"
+          class="overlay empty-state"
+        >
+          <p>Compute spectra to display</p>
+        </div>
+      </Transition>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from 'vue';
+import { onMounted, watch } from 'vue';
 import { useAnalysisStore } from '../stores/analysisStore';
+import { useLiveSpectrum } from '../composables/useLiveSpectrum';
+import { useSpectrumPlot } from '../composables/useSpectrumPlot';
 import { logger } from '../services/logging';
+import Icon from './Icon.vue';
+import TooltipIcon from './TooltipIcon.vue';
+import GraphicEqOverlay from './GraphicEqOverlay.vue';
 
 const store = useAnalysisStore();
-const plotContainer = ref<HTMLElement>();
-let plotInitialized = false;
 
-onMounted(async () => {
+interface Props {
+  isSpectrumExpanded: boolean;
+}
+
+interface Emits {
+  (e: 'toggle-expand'): void;
+}
+
+const props = defineProps<Props>();
+const emit = defineEmits<Emits>();
+
+function onToggleExpand(): void {
+  emit('toggle-expand');
+}
+
+const {
+  frequencies: liveFrequencies,
+  magnitudesDb: liveMagnitudesDb,
+  averageDb: liveAverageDb,
+} = useLiveSpectrum();
+
+const { plotContainer, scheduleUpdate, handleLiveMagnitudesUpdate, plotAxisRange } = useSpectrumPlot(
+  liveFrequencies,
+  liveMagnitudesDb,
+  liveAverageDb
+);
+
+async function resizePlot(): Promise<void> {
+  if (!plotContainer.value) return;
+  const Plotly = (window as any).Plotly;
+  if (Plotly) {
+    await Plotly.Plots.resize(plotContainer.value);
+  }
+}
+
+onMounted(() => {
   logger.info('SpectrumViewer', 'Mounted');
-  // Initial plot if spectra exist
-  if (store.spectra.A || store.spectra.B) {
-    await updatePlot();
+  if (store.spectra.A || store.spectra.B || store.ir || liveFrequencies.value) {
+    scheduleUpdate();
   }
 });
 
 watch(
-  () => [store.spectra.A, store.spectra.B],
-  async () => {
-    await updatePlot();
-  },
+  () => [store.spectra.A, store.spectra.B, store.ir],
+  () => scheduleUpdate(),
   { deep: true }
 );
 
-async function updatePlot(): Promise<void> {
-  // Let any pending render flush before touching the container
-  await nextTick();
+// Playback starting, stopping or switching source changes the trace list, so this one
+// needs the full rebuild — the frame-by-frame values do not.
+watch([liveFrequencies], () => scheduleUpdate());
 
-  if (!plotContainer.value) {
-    plotInitialized = false;
-    return;
+// Both curves come from the same analyser frame, so one restyle carries the pair — two
+// separate calls would redraw the plot twice for a single frame's worth of new data.
+watch(liveMagnitudesDb, handleLiveMagnitudesUpdate);
+
+// When the spectrum panel expands/collapses, tell Plotly to resize to the new dimensions
+watch(
+  () => props.isSpectrumExpanded,
+  async () => {
+    await scheduleUpdate();
+    resizePlot();
   }
-
-  try {
-    const Plotly = (await import('plotly.js/dist/plotly')).default;
-
-    const traces: any[] = [];
-    const { A, B } = store.spectra;
-
-    if (A) {
-      traces.push({
-        x: Array.from(A.frequencies).slice(0, 500),
-        y: Array.from(A.magnitudesDb).slice(0, 500),
-        type: 'scatter',
-        mode: 'lines',
-        name: 'Spectrum A',
-        line: {
-          color: '#2563EB',
-          width: 1,
-        },
-        hovertemplate: '<b>A</b><br>%{x:.1f}Hz<br>%{y:.1f}dB<extra></extra>',
-      });
-    }
-
-    if (B) {
-      traces.push({
-        x: Array.from(B.frequencies).slice(0, 500),
-        y: Array.from(B.magnitudesDb).slice(0, 500),
-        type: 'scatter',
-        mode: 'lines',
-        name: 'Spectrum B',
-        line: {
-          color: '#FF9500',
-          width: 1,
-        },
-        hovertemplate: '<b>B</b><br>%{x:.1f}Hz<br>%{y:.1f}dB<extra></extra>',
-      });
-    }
-
-    const layout = {
-      title: '',
-      xaxis: {
-        title: 'Frequency (Hz)',
-        type: 'log',
-        zeroline: false,
-        gridcolor: '#333333',
-      },
-      yaxis: {
-        title: 'Magnitude (dB)',
-        zeroline: false,
-        gridcolor: '#333333',
-      },
-      plot_bgcolor: 'rgba(26, 26, 26, 0.5)',
-      paper_bgcolor: '#1A1A1A',
-      font: {
-        family: 'sans-serif',
-        size: 12,
-        color: '#E5E5E5',
-      },
-      margin: { l: 40, r: 20, t: 30, b: 40 },
-      hovermode: 'x unified',
-      showlegend: true,
-      legend: {
-        x: 0.98,
-        y: 0.98,
-        bgcolor: 'rgba(0, 0, 0, 0.5)',
-        bordercolor: '#333333',
-        borderwidth: 1,
-      },
-    };
-
-    const config = {
-      responsive: true,
-      displayModeBar: false,
-    };
-
-    if (traces.length === 0) {
-      if (plotInitialized) {
-        Plotly.purge(plotContainer.value);
-        plotInitialized = false;
-        logger.debug('SpectrumViewer', 'Plot cleared');
-      }
-    } else if (!plotInitialized) {
-      Plotly.newPlot(plotContainer.value, traces, layout, config);
-      plotInitialized = true;
-      logger.info('SpectrumViewer', 'Plot initialized');
-    } else {
-      Plotly.react(plotContainer.value, traces, layout, config);
-      logger.debug('SpectrumViewer', 'Plot updated');
-    }
-  } catch (error) {
-    logger.error('SpectrumViewer', 'Plot error', { error: String(error) });
-  }
-}
+);
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+@use '../styles/variables' as *;
+@use '../styles/mixins' as *;
+
+$spinner-size: 24px;
+
 .spectrum-viewer {
   display: flex;
   flex-direction: column;
@@ -161,11 +157,66 @@ async function updatePlot(): Promise<void> {
   align-items: center;
 }
 
+.spectrum-title-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .spectrum-title {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  font-family: var(--font-display);
+  @include caps-label;
+}
+
+
+.spectrum-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-expand {
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: all 200ms ease-out;
+
+  &:hover {
+    background-color: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+
+  &.active {
+    background-color: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+
+    &:hover {
+      background-color: var(--color-bg);
+      color: var(--color-text-secondary);
+      border-color: var(--color-border);
+    }
+  }
+
+  :deep(.feather-icon) {
+    transition: transform 300ms ease-out;
+  }
 }
 
 .plot-area {
@@ -173,6 +224,9 @@ async function updatePlot(): Promise<void> {
   flex: 1;
   min-height: 0;
   display: flex;
+  max-height: 100%;
+  align-items: stretch;
+  container-type: inline-size;
 }
 
 .overlay {
@@ -182,12 +236,35 @@ async function updatePlot(): Promise<void> {
   border-radius: var(--radius-md);
 }
 
+.fade-rise-enter-active {
+  animation: slideIn $transition-base ease-out;
+}
+
+.fade-rise-leave-active {
+  transition: opacity $transition-fast;
+}
+
+.fade-rise-leave-to {
+  opacity: 0;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .empty-state {
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--color-text-secondary);
-  font-size: 14px;
+  font-size: var(--font-size-base);
 }
 
 .loading-state {
@@ -200,18 +277,16 @@ async function updatePlot(): Promise<void> {
 }
 
 .spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid rgba(37, 99, 235, 0.2);
+  width: $spinner-size;
+  height: $spinner-size;
+  border: 2px solid color-mix(in srgb, var(--color-accent) 20%, transparent);
   border-top-color: var(--color-accent);
   border-radius: 50%;
   animation: spin 600ms linear infinite;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
 .plot-container {
@@ -220,6 +295,9 @@ async function updatePlot(): Promise<void> {
   border-radius: var(--radius-md);
   background-color: var(--color-bg);
   overflow: hidden;
+  height: 100%;
+  width: 100%;
+  align-self: stretch;
 }
 
 :deep(.plotly) {

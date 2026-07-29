@@ -7,14 +7,18 @@ export function extractSpectrum(
 ): FrequencySpectrum {
   logger.debug('spectrum', 'Extracting spectrum', { refLevel });
 
-  const { magnitudes, phases, frequencies } = fftResult;
+  const { magnitudes, phases, frequencies, noiseFloor } = fftResult;
   const magnitudesDb = new Float32Array(magnitudes.length);
 
+  let maxDb = -Infinity;
+  let minDb = Infinity;
   for (let i = 0; i < magnitudes.length; i++) {
-    const mag = magnitudes[i];
     // Avoid log(0) — clamp to small value
-    const clampedMag = Math.max(mag, 1e-10);
-    magnitudesDb[i] = 20 * Math.log10(clampedMag / refLevel);
+    const clampedMag = Math.max(magnitudes[i], 1e-10);
+    const db = 20 * Math.log10(clampedMag / refLevel);
+    magnitudesDb[i] = db;
+    if (db > maxDb) maxDb = db;
+    if (db < minDb) minDb = db;
   }
 
   const spectrum: FrequencySpectrum = {
@@ -22,12 +26,14 @@ export function extractSpectrum(
     magnitudesLinear: magnitudes,
     magnitudesDb,
     phase: phases,
+    noiseFloorLinear: noiseFloor,
   };
 
   logger.debug('spectrum', 'Spectrum extracted', {
     bins: magnitudes.length,
-    maxDb: Math.max(...magnitudesDb),
-    minDb: Math.min(...magnitudesDb),
+    maxDb,
+    minDb,
+    hasNoiseFloor: noiseFloor !== undefined,
   });
 
   return spectrum;

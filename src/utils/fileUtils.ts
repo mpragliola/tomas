@@ -16,16 +16,28 @@ export function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-export type PcmBitDepth = 8 | 16 | 24;
+/**
+ * 8-bit is deliberately absent. Its LSB sits at -42 dBFS, and a tone-match IR peaks around
+ * 0.05-0.3, so the usable resolution is 22-26 dB — the quantization error would be a larger
+ * filter than the correction itself.
+ */
+export type PcmBitDepth = 16 | 24;
+
+/** What the export dropdown offers: integer PCM depths plus IEEE float. */
+export type ExportFormat = PcmBitDepth | 'float32';
 
 /**
  * Encode mono samples as integer PCM (format tag 1), the format hardware IR loaders expect.
- * 8-bit WAV data is unsigned by spec; 16- and 24-bit are signed little-endian.
+ * Signed little-endian at both supported depths.
+ *
+ * `dither` defaults on for 16-bit and off for 24-bit — see `tpdfNoise` for why an impulse
+ * response in particular needs it.
  */
 export function encodeWavPcm(
   samples: Float32Array,
   sampleRate: number,
   bitDepth: PcmBitDepth,
+  dither: boolean = bitDepth < 24,
 ): ArrayBuffer {
   const numChannels = 1;
   const bytesPerSample = bitDepth / 8;
@@ -57,16 +69,17 @@ export function encodeWavPcm(
   view.setUint32(40, dataSize, true);
 
   const maxValue = Math.pow(2, bitDepth - 1) - 1;
+  const limit = Math.pow(2, bitDepth - 1) - 1;
   let offset = 44;
 
   for (let i = 0; i < samples.length; i++) {
     const clamped = Math.max(-1, Math.min(1, samples[i]));
-    const value = Math.round(clamped * maxValue);
+    const scaled = clamped * maxValue + (dither ? tpdfNoise() : 0);
+    // Dither can push a full-scale sample past the last code — clamp in integer units,
+    // after the noise, or a +1.0 tap wraps to the largest negative value.
+    const value = Math.max(-limit - 1, Math.min(limit, Math.round(scaled)));
 
-    if (bitDepth === 8) {
-      // 8-bit WAV is unsigned, centred on 128
-      view.setUint8(offset, Math.max(0, Math.min(255, value + 128)));
-    } else if (bitDepth === 16) {
+    if (bitDepth === 16) {
       view.setInt16(offset, value, true);
     } else {
       // 24-bit: three little-endian bytes of the two's-complement value
@@ -79,6 +92,25 @@ export function encodeWavPcm(
   }
 
   return buffer;
+}
+
+/**
+ * Triangular-PDF dither, ±1 LSB, as the difference of two uniform draws.
+ *
+ * Why an IR needs this more than program material does. A minimum-phase filter puts its
+ * low-frequency information in a long, quietly decaying tail. Round that tail without
+ * dither and every sample below half an LSB becomes exactly zero — not noisy, *gone* —
+ * so the filter loses the part that resolves the bass and gains a hard truncation where
+ * the tail used to be. TPDF makes the error zero-mean and signal-independent, which keeps
+ * the sub-LSB tail alive statistically: the average of the quantized tail still tracks the
+ * real one.
+ *
+ * Triangular rather than rectangular because it also removes the *modulation* of the error
+ * by the signal, which is what would otherwise turn a decaying tail into a correlated
+ * artefact rather than plain noise.
+ */
+function tpdfNoise(): number {
+  return Math.random() - Math.random();
 }
 
 /** Encode mono samples as a 32-bit float WAV (format tag 3, IEEE float). */
