@@ -78,16 +78,17 @@ import { computed, ref, toRef } from 'vue';
 import Icon from '../Icon.vue';
 import { useAnalysisStore } from '../../stores/analysisStore';
 import { useSpectrumScheduler } from '../../composables/useSpectrumScheduler';
-import { useWaveformSlot, ZOOM_MIN, ZOOM_MAX } from '../../composables/useWaveformSlot';
-import type { SlotId } from '../../types/audio';
+import { useWaveformSlot, ZOOM_MIN, ZOOM_MAX, type WaveformTarget } from '../../composables/useWaveformSlot';
 
 const props = defineProps<{
-  slotId: SlotId;
+  target: WaveformTarget;
   /** The block is laid out and can be measured — see useWaveformSlot. */
   active: boolean;
 }>();
 
 const emit = defineEmits<{
+  /** For A: clear the loaded file. For a reference tab: remove that tab. Meaning is
+   * resolved by the caller (AudioSlot.vue / ReferenceSlot.vue), not baked in here. */
   clear: [];
   status: [message: string, durationMs: number];
 }>();
@@ -98,7 +99,10 @@ const minimapContainer = ref<HTMLElement>();
 const spectrogramContainer = ref<HTMLElement>();
 /** Which of the two stacked views is on top — the other collapses to free up height. */
 const view = ref<'wave' | 'spectrogram'>('wave');
-const spectrum = useSpectrumScheduler(props.slotId, {
+// Passed as getters, not `props.target` itself: this component instance is reused across
+// reference tab switches (only the `target` prop's value changes), and a composable's
+// setup runs once — a raw value would freeze on whichever tab was active at first mount.
+const spectrum = useSpectrumScheduler(() => props.target, {
   // A selection the FFT refuses is otherwise indistinguishable from a selection
   // that worked — the region is drawn either way and nothing downstream moves
   onError: (message) => emit('status', message, 3000),
@@ -107,7 +111,7 @@ const spectrum = useSpectrumScheduler(props.slotId, {
 });
 
 const { zoom, scrollBar, repaint, setZoom, handleWheel, startScrollDrag, resetView } =
-  useWaveformSlot(props.slotId, container, {
+  useWaveformSlot(() => props.target, container, {
     active: toRef(props, 'active'),
     minimapContainer,
     spectrogramContainer,
@@ -115,16 +119,34 @@ const { zoom, scrollBar, repaint, setZoom, handleWheel, startScrollDrag, resetVi
     onSelectionChange: spectrum.schedule,
   });
 
+/** Same seam useWaveformSlot uses internally — resolve buffer/rate/selection for
+ * whichever target this instance is showing. */
+function resolveTarget() {
+  if (props.target === 'A') {
+    return {
+      buffer: store.audioBufferA,
+      sampleRate: store.sampleRateA,
+      selection: store.selectionA,
+    };
+  }
+  const reference = store.references[props.target.referenceId];
+  const asset = reference?.assetId ? store.audioAssets[reference.assetId] : undefined;
+  return {
+    buffer: asset?.buffer ?? new Float32Array(),
+    sampleRate: asset?.sampleRate ?? 44100,
+    selection: reference?.selection ?? null,
+  };
+}
+
 const durationLabel = computed(() => {
-  const audioData = store.audioBuffers[props.slotId];
-  if (audioData.length === 0) return '0.00s';
-  return `${(audioData.length / store.sampleRates[props.slotId]).toFixed(2)}s`;
+  const { buffer, sampleRate } = resolveTarget();
+  if (buffer.length === 0) return '0.00s';
+  return `${(buffer.length / sampleRate).toFixed(2)}s`;
 });
 
 const selectionLabel = computed(() => {
-  const selection = store.selections[props.slotId];
+  const { selection, sampleRate } = resolveTarget();
   if (!selection || selection.endSample <= selection.startSample) return 'drag to select';
-  const sampleRate = store.sampleRates[props.slotId];
   const start = (selection.startSample / sampleRate).toFixed(2);
   const end = (selection.endSample / sampleRate).toFixed(2);
   return `${start}s – ${end}s`;

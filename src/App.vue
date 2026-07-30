@@ -26,7 +26,7 @@
       <div class="main-left" :class="isSpectrumExpanded ? 'spectrum-expanded' : 'spectrum-minimized'">
         <!-- Top: the two waves, spanning sidebar + spectrum width -->
         <div class="panel panel-waves panel-side-bg">
-          <FileUpload @file-loaded="onFileLoaded" @record="onRecord" @stop-record="onStopRecord" />
+          <FileUpload @file-loaded="onFileLoaded" @record="onRecord($event)" @stop-record="onStopRecord" />
         </div>
 
         <div class="main-lower">
@@ -81,6 +81,7 @@ import HelpModal from './components/HelpModal.vue';
 import Icon from './components/Icon.vue';
 import { logger } from './services/logging';
 import { useAnalysisStore } from './stores/analysisStore';
+import type { RecordTarget } from './types/audio';
 
 type Theme = 'light' | 'dark' | 'sepia' | 'earth' | 'retro';
 
@@ -163,13 +164,13 @@ function cycleTheme(): void {
   applyTheme(currentTheme.value);
 }
 
-function onFileLoaded(e: any): void {
-  logger.info('App', 'File loaded event received', { slot: e.slot });
+function onFileLoaded(e: { target: 'A' | 'reference'; file: File }): void {
+  logger.info('App', 'File loaded event received', { target: e.target });
 }
 
-async function onRecord(e: any): Promise<void> {
-  logger.info('App', 'Record button clicked', { slot: e.slot });
-  await recordingPanel.value?.startRecording(e.slot);
+async function onRecord(target: RecordTarget): Promise<void> {
+  logger.info('App', 'Record button clicked', { target: target === 'A' ? 'A' : target.referenceId });
+  await recordingPanel.value?.startRecording(target);
 }
 
 async function onStopRecord(): Promise<void> {
@@ -177,8 +178,8 @@ async function onStopRecord(): Promise<void> {
   await recordingPanel.value?.stopRecording();
 }
 
-function onRecorded(e: any): void {
-  logger.info('App', 'Recording completed', { slot: e.slot, samples: e.samples });
+function onRecorded(e: { samples: number }): void {
+  logger.info('App', 'Recording completed', { samples: e.samples });
 }
 
 function onIRDerived(e: any): void {

@@ -9,7 +9,8 @@ export function usePlayback() {
   const isPlaying = ref(false);
   const statusMessage = ref('');
   // A and B are the same recording heard two ways, so they share a playhead and stay
-  // comparable across a switch. C is a different file entirely — its own timeline.
+  // comparable across a switch. The active reference tab is a different file entirely —
+  // its own timeline, one clock shared by whichever tab is currently active.
   const abTime = ref(0);
   const refTime = ref(0);
   const mode = ref<PlaybackMode>('processed');
@@ -21,9 +22,13 @@ export function usePlayback() {
   // find a newer start (or a stop) has already happened must not install its progress loop.
   let startToken = 0;
 
-  const hasAudio = computed(() => store.audioBuffers.A.length > 0);
-  const hasReference = computed(() => store.audioBuffers.B.length > 0);
-  const hasIR = computed(() => !!store.ir);
+  const hasAudio = computed(() => store.audioBufferA.length > 0);
+  // A reference tab exists — not tied to which one happens to be active.
+  const hasReference = computed(() => store.referenceOrder.length > 0);
+  const hasIR = computed(() => {
+    const id = store.activeReferenceId;
+    return !!id && !!store.references[id]?.ir;
+  });
 
   /**
    * What is actually playable right now. The user's pick is remembered even when its
@@ -36,7 +41,16 @@ export function usePlayback() {
     return mode.value;
   });
 
-  const activeSlot = computed<'A' | 'B'>(() => (activeMode.value === 'reference' ? 'B' : 'A'));
+  // Two-way split, not per-tab: only 'A' vs. "whichever reference tab is active" matters
+  // for timeline/loop-bounds resolution. The tab's own identity/label is exposed
+  // separately via `activeReferenceLabel` for display purposes.
+  const activeSlot = computed<'A' | 'reference'>(() => (activeMode.value === 'reference' ? 'reference' : 'A'));
+
+  /** Label of the tab actually sounding/cued on the reference timeline, for UI hints. */
+  const activeReferenceLabel = computed<string | null>(() => {
+    const id = store.activeReferenceId;
+    return id ? store.references[id]?.label ?? null : null;
+  });
 
   const currentTime = computed(() => (activeMode.value === 'reference' ? refTime.value : abTime.value));
 
@@ -46,25 +60,48 @@ export function usePlayback() {
   }
 
   const totalTime = computed(() => {
-    const slot = activeSlot.value;
-    const buffer = store.audioBuffers[slot];
-    if (!buffer || buffer.length === 0) return 0;
-    return buffer.length / (store.sampleRates[slot] || 44100);
+    if (activeSlot.value === 'A') {
+      const buffer = store.audioBufferA;
+      if (!buffer || buffer.length === 0) return 0;
+      return buffer.length / (store.sampleRateA || 44100);
+    }
+    const id = store.activeReferenceId;
+    const ref = id ? store.references[id] : null;
+    if (!ref || !ref.assetId) return 0;
+    const asset = store.audioAssets[ref.assetId];
+    if (!asset || asset.buffer.length === 0) return 0;
+    return asset.buffer.length / (asset.sampleRate || 44100);
   });
 
   /**
-   * Loop bounds for the slot currently sounding. An empty selection (drag never made, or
-   * cleared) means loop the whole file rather than refuse to loop at all.
+   * Loop bounds for the timeline currently sounding. An empty selection (drag never made,
+   * or cleared) means loop the whole file rather than refuse to loop at all.
    */
   function loopBounds(): { start: number; end: number } {
-    const slot = activeSlot.value;
-    const selection = store.selections[slot];
-    const sampleRate = store.sampleRates[slot] || 44100;
-    if (selection.endSample > selection.startSample) {
-      return {
-        start: selection.startSample / sampleRate,
-        end: selection.endSample / sampleRate,
-      };
+    if (activeSlot.value === 'A') {
+      const selection = store.selectionA;
+      const sampleRate = store.sampleRateA || 44100;
+      if (selection.endSample > selection.startSample) {
+        return {
+          start: selection.startSample / sampleRate,
+          end: selection.endSample / sampleRate,
+        };
+      }
+      return { start: 0, end: totalTime.value };
+    }
+
+    const id = store.activeReferenceId;
+    const ref = id ? store.references[id] : null;
+    if (ref?.assetId) {
+      const asset = store.audioAssets[ref.assetId];
+      const sampleRate = asset?.sampleRate || 44100;
+      const selection = ref.selection;
+      if (selection.endSample > selection.startSample) {
+        return {
+          start: selection.startSample / sampleRate,
+          end: selection.endSample / sampleRate,
+        };
+      }
     }
     return { start: 0, end: totalTime.value };
   }
@@ -79,27 +116,56 @@ export function usePlayback() {
     await startPlayback(Math.min(currentTime.value, totalTime.value), store.playbackVolume);
   });
 
-  // Both waveform cursors are published, not just the active one: A and B are heard on slot
-  // A's timeline, C on slot B's, and the idle one holds the cue the user will come back to.
+  // Switching the active tab swaps out the whole timeline under the reference clock: can't
+  // gaplessly cross-fade to a different buffer mid-play, so a playing reference is stopped
+  // (and restarted on the new tab, mirroring the activeMode watcher above). Each tab keeps
+  // its own remembered position (its own `playhead`) rather than always resetting to 0 —
+  // switching tabs reads more like switching between bookmarked files than starting over.
+  watch(() => store.activeReferenceId, (nextId, previousId) => {
+    if (nextId === previousId) return;
+    const wasPlayingReference = isPlaying.value && activeSlot.value === 'reference';
+    const newPlayhead = nextId ? store.references[nextId]?.playhead ?? 0 : 0;
+
+    if (wasPlayingReference) {
+      stopPlayback();
+      refTime.value = newPlayhead;
+      if (totalTime.value > 0) {
+        void startPlayback(newPlayhead, store.playbackVolume);
+      }
+    } else {
+      refTime.value = newPlayhead;
+    }
+  });
+
+  // Both waveform cursors are published, not just the active one: A is heard/cued on slot
+  // A's timeline, the active reference tab on its own, and the idle one holds the cue the
+  // user will come back to.
   watch([abTime, refTime], ([ab, reference]) => {
-    store.playheads.A = ab;
-    store.playheads.B = reference;
+    store.playheadA = ab;
+    const id = store.activeReferenceId;
+    if (id && store.references[id]) store.references[id].playhead = reference;
   }, { immediate: true });
+
+  /** The active reference tab's own stored playhead — null when there is none. */
+  const activeReferencePlayhead = computed<number | null>(() => {
+    const id = store.activeReferenceId;
+    return id ? store.references[id]?.playhead ?? null : null;
+  });
 
   // The waveforms are the scrub surface, so a click there arrives as a store position the
   // transport did not write. Equality is what tells the two apart — a position this panel
   // just published is already in sync and must not restart anything.
-  watch(() => store.playheads.A, (time) => applyExternalSeek('A', time));
-  watch(() => store.playheads.B, (time) => applyExternalSeek('B', time));
+  watch(() => store.playheadA, (time) => applyExternalSeek('A', time));
+  watch(activeReferencePlayhead, (time) => applyExternalSeek('reference', time));
 
-  async function applyExternalSeek(slot: 'A' | 'B', time: number | null): Promise<void> {
+  async function applyExternalSeek(slot: 'A' | 'reference', time: number | null): Promise<void> {
     if (time === null) return;
-    const local = slot === 'B' ? refTime.value : abTime.value;
+    const local = slot === 'reference' ? refTime.value : abTime.value;
     if (Math.abs(time - local) < 0.001) return;
 
     // Nothing is sounding on that timeline — just move its cue
     if (slot !== activeSlot.value) {
-      if (slot === 'B') refTime.value = time;
+      if (slot === 'reference') refTime.value = time;
       else abTime.value = time;
       return;
     }
@@ -130,12 +196,13 @@ export function usePlayback() {
     stopPlayback();
     if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
     // Same reason: the markers are store state, and nothing is driving them any more
-    store.playheads.A = null;
-    store.playheads.B = null;
+    store.playheadA = null;
+    const id = store.activeReferenceId;
+    if (id && store.references[id]) store.references[id].playhead = null;
   });
 
   async function startPlayback(offset: number, volume: number): Promise<void> {
-    if (store.audioBuffers[activeSlot.value].length === 0) {
+    if (totalTime.value === 0) {
       statusMessage.value = 'No audio to play';
       return;
     }
@@ -147,7 +214,15 @@ export function usePlayback() {
       setCurrentTime(offset);
 
       const bounds = isLooping.value ? loopBounds() : null;
-      await store.playback(volume, activeMode.value, offset, isLooping.value, bounds?.start, bounds?.end);
+      await store.playback(
+        volume,
+        activeMode.value,
+        offset,
+        isLooping.value,
+        bounds?.start,
+        bounds?.end,
+        store.activeReferenceId ?? undefined,
+      );
 
       // Something else took over while the store was starting up — it owns the transport now
       if (token !== startToken) return;
@@ -242,6 +317,7 @@ export function usePlayback() {
     refTime,
     activeMode,
     activeSlot,
+    activeReferenceLabel,
     currentTime,
     totalTime,
     hasAudio,

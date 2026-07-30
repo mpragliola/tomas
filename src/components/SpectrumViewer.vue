@@ -8,17 +8,17 @@
       <div class="spectrum-header-actions">
         <button
           class="btn-expand"
-          :class="{ active: store.graphicEq.enabled }"
-          :disabled="!store.toneCurve"
-          :aria-pressed="store.graphicEq.enabled"
+          :class="{ active: activeRef?.graphicEq.enabled }"
+          :disabled="!activeRef?.toneCurve"
+          :aria-pressed="activeRef?.graphicEq.enabled"
           :title="
-            !store.toneCurve
+            !activeRef?.toneCurve
               ? 'Run a tone-match analysis first'
-              : store.graphicEq.enabled
+              : activeRef.graphicEq.enabled
                 ? 'Disable graphic EQ'
                 : 'Enable graphic EQ'
           "
-          @click="store.setGraphicEqEnabled(!store.graphicEq.enabled)"
+          @click="store.setGraphicEqEnabled(!activeRef?.graphicEq.enabled)"
         >
           <Icon name="sliders" size="18" />
         </button>
@@ -39,7 +39,7 @@
       <div ref="plotContainer" class="plot-container"></div>
 
       <GraphicEqOverlay
-        v-if="store.graphicEq.enabled && store.toneCurve"
+        v-if="activeRef?.graphicEq.enabled && activeRef?.toneCurve"
         :plot-container="plotContainer"
         :axis-range="plotAxisRange"
       />
@@ -50,7 +50,7 @@
           <p>Computing spectra...</p>
         </div>
         <div
-          v-else-if="!store.spectra.A && !store.spectra.B && !liveFrequencies"
+          v-else-if="!store.spectrumA && !activeRef?.spectrum && !liveFrequencies"
           class="overlay empty-state"
         >
           <p>Compute spectra to display</p>
@@ -61,7 +61,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, watch } from 'vue';
+import { computed, onMounted, watch } from 'vue';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { useLiveSpectrum } from '../composables/useLiveSpectrum';
 import { useSpectrumPlot } from '../composables/useSpectrumPlot';
@@ -87,6 +87,13 @@ function onToggleExpand(): void {
   emit('toggle-expand');
 }
 
+/** The active reference, or null while nothing is active — the seam every
+ * `references[activeReferenceId]` lookup below goes through. */
+const activeRef = computed(() => {
+  const id = store.activeReferenceId;
+  return id ? store.references[id] ?? null : null;
+});
+
 const {
   frequencies: liveFrequencies,
   magnitudesDb: liveMagnitudesDb,
@@ -109,13 +116,13 @@ async function resizePlot(): Promise<void> {
 
 onMounted(() => {
   logger.info('SpectrumViewer', 'Mounted');
-  if (store.spectra.A || store.spectra.B || store.ir || liveFrequencies.value) {
+  if (store.spectrumA || activeRef.value?.spectrum || activeRef.value?.ir || liveFrequencies.value) {
     scheduleUpdate();
   }
 });
 
 watch(
-  () => [store.spectra.A, store.spectra.B, store.ir],
+  () => [store.spectrumA, activeRef.value?.spectrum, activeRef.value?.ir],
   () => scheduleUpdate(),
   { deep: true }
 );

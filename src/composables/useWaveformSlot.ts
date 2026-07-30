@@ -6,7 +6,6 @@ import MinimapPlugin from 'wavesurfer.js/dist/plugins/minimap.esm.js';
 import SpectrogramPlugin from 'wavesurfer.js/dist/plugins/spectrogram.esm.js';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { logger } from '../services/logging';
-import type { SlotId } from '../types/audio';
 import { MIN_ANALYSIS_SECONDS } from '../services/dsp/defaults';
 
 export const ZOOM_MIN = 1;
@@ -19,9 +18,25 @@ export const MIN_SELECTION_SEC = MIN_ANALYSIS_SECONDS;
 
 const ZOOM_WHEEL_STEP = 1.15;
 
+/**
+ * What a waveform (and, by extension, the spectrum scheduler) is being asked to render:
+ * the working take, or one reference tab's audio. Shared between `useWaveformSlot` and
+ * `useSpectrumScheduler` — both need the identical concept, so it's exported from here
+ * rather than duplicated.
+ */
+export type WaveformTarget = 'A' | { referenceId: string };
+
 // waveColor carries the waveform; progressColor and cursorColor are the transport, driven
-// from the store's position rather than by WaveSurfer playing anything itself
-const WAVE_COLORS_DARK: Record<SlotId, Record<string, string>> = {
+// from the store's position rather than by WaveSurfer playing anything itself.
+//
+// Up to MAX_REFERENCES (8) reference tabs can exist, but this composable only ever renders
+// one waveform at a time and doesn't render the tab bar — a single "reference" color used
+// for every non-A target is enough here. Per-tab-distinct waveform colors, if ever wanted,
+// would be a UI-only addition on top of this (e.g. tinting via CSS filter), not a reason to
+// thread an 8-color palette through every function below.
+type ColorKey = 'A' | 'reference';
+
+const WAVE_COLORS_DARK: Record<ColorKey, Record<string, string>> = {
   A: {
     waveColor: '#5B93F5',
     progressColor: '#2563EB',
@@ -29,7 +44,7 @@ const WAVE_COLORS_DARK: Record<SlotId, Record<string, string>> = {
     regionColor: 'rgba(37, 99, 235, 0.22)',
     overlayColor: 'rgba(37, 99, 235, 0.18)',
   },
-  B: {
+  reference: {
     waveColor: '#FFB44D',
     progressColor: '#FF9500',
     cursorColor: '#FF9500',
@@ -38,7 +53,7 @@ const WAVE_COLORS_DARK: Record<SlotId, Record<string, string>> = {
   },
 };
 
-const WAVE_COLORS_RETRO: Record<SlotId, Record<string, string>> = {
+const WAVE_COLORS_RETRO: Record<ColorKey, Record<string, string>> = {
   A: {
     waveColor: 'rgba(100, 200, 100, 0.8)',
     progressColor: 'rgba(68, 255, 68, 0.95)',
@@ -46,7 +61,7 @@ const WAVE_COLORS_RETRO: Record<SlotId, Record<string, string>> = {
     regionColor: 'rgba(68, 255, 68, 0.22)',
     overlayColor: 'rgba(68, 255, 68, 0.18)',
   },
-  B: {
+  reference: {
     waveColor: 'rgba(85, 170, 85, 0.8)',
     progressColor: 'rgba(51, 255, 51, 0.85)',
     cursorColor: 'rgba(51, 255, 51, 0.85)',
@@ -59,8 +74,8 @@ function getTheme(): string {
   return document.documentElement.getAttribute('data-theme') || 'dark';
 }
 
-function getWaveColors(slot: SlotId): Record<string, string> {
-  return getTheme() === 'retro' ? WAVE_COLORS_RETRO[slot] : WAVE_COLORS_DARK[slot];
+function getWaveColors(colorKey: ColorKey): Record<string, string> {
+  return getTheme() === 'retro' ? WAVE_COLORS_RETRO[colorKey] : WAVE_COLORS_DARK[colorKey];
 }
 
 const MINIMAP_HEIGHT = 26;
@@ -80,16 +95,25 @@ export interface WaveformSlotOptions {
 }
 
 /**
- * WaveSurfer lifecycle for one slot: rendering, zoom, panning and the drag-selected
+ * WaveSurfer lifecycle for one target: rendering, zoom, panning and the drag-selected
  * analysis range. Knows nothing about file loading or DSP.
  */
 export function useWaveformSlot(
-  slot: SlotId,
+  getTarget: () => WaveformTarget,
   container: Ref<HTMLElement | undefined>,
   options: WaveformSlotOptions,
 ) {
   const store = useAnalysisStore();
   const zoom = ref(1);
+  // Used only for log labels — 'A' or the reference id. A function, not a value snapshot:
+  // this composable's setup runs once, but a caller like ReferenceSlot.vue reuses the same
+  // WaveformEditor instance across tab switches (only the `target` prop value changes,
+  // never the component itself) — a plain destructured `target` would freeze on whichever
+  // tab was active when this ran, and every later switch would keep rendering that one.
+  function currentLabel(): string {
+    const t = getTarget();
+    return t === 'A' ? 'A' : t.referenceId;
+  }
 
   // Overlay scroll indicator (percent of the scrollable width), replaces the native
   // scrollbar so the waveform keeps its full height
@@ -99,14 +123,70 @@ export function useWaveformSlot(
   let regions: any = null;
   let spectrogram: any = null;
   let scrollCleanup: (() => void) | null = null;
+  let dblClickCleanup: (() => void) | null = null;
   // Lives inside the spectrogram plugin's own scrolling wrapper, so it scrolls with the
   // content the same way WaveSurfer's built-in cursor does inside the main waveform.
   let spectrogramCursor: HTMLElement | null = null;
+  // Ids of regions created by restoreSelectionRegion's own addRegion(...) — checked (not a
+  // transient flag) because the plugin can defer the actual 'region-created'/'region-updated'
+  // emission until WaveSurfer's own 'ready' fires, well after addRegion() itself returns; a
+  // flag reset synchronously right after the call would already be back to false by then.
+  const restoredRegionIds = new Set<string>();
 
-  // flush: 'post' — the v-show has already been applied when this runs
+  /**
+   * The one seam every function below goes through instead of scattering
+   * `target === 'A' ? x : y` ternaries. For 'A', reads/writes the store's flat A refs
+   * directly. For a reference, reads its asset via `store.references`/`store.audioAssets`
+   * and writes through `store.updateReferenceSelection` / the reference's own `playhead`.
+   */
+  function resolve() {
+    const target = getTarget();
+    if (target === 'A') {
+      return {
+        colorKey: 'A' as ColorKey,
+        buffer: store.audioBufferA,
+        peaks: store.wavePeakA,
+        sampleRate: store.sampleRateA,
+        playhead: store.playheadA,
+        selection: store.selectionA,
+        setPlayhead(time: number): void {
+          store.playheadA = time;
+        },
+        setSelection(startSample: number, endSample: number): void {
+          store.updateSelectionA(startSample, endSample);
+        },
+      };
+    }
+
+    const referenceId = target.referenceId;
+    const ref = store.references[referenceId];
+    const asset = ref?.assetId ? store.audioAssets[ref.assetId] : undefined;
+    return {
+      colorKey: 'reference' as ColorKey,
+      buffer: asset?.buffer ?? new Float32Array(),
+      peaks: asset?.wavePeaks ?? new Float32Array(),
+      sampleRate: asset?.sampleRate ?? 44100,
+      playhead: ref?.playhead ?? null,
+      selection: ref?.selection ?? null,
+      setPlayhead(time: number): void {
+        const current = store.references[referenceId];
+        if (current) current.playhead = time;
+      },
+      setSelection(startSample: number, endSample: number): void {
+        store.updateReferenceSelection(referenceId, startSample, endSample);
+      },
+    };
+  }
+
+  // flush: 'post' — the v-show has already been applied when this runs. `getTarget` is a
+  // second dependency, not just `options.active`: reusing one WaveformEditor instance
+  // across reference tabs means the same visible=true state persists across a tab switch,
+  // so `getTarget` changing is what has to trigger the rebuild — `init()` already tears
+  // down and recreates the WaveSurfer instance, which is exactly what a different target's
+  // buffer/selection/regions needs, not an in-place `repaint()`.
   watch(
-    options.active,
-    (visible) => {
+    [options.active, getTarget],
+    ([visible]) => {
       if (visible) init();
       else destroy();
     },
@@ -114,12 +194,12 @@ export function useWaveformSlot(
   );
 
   // The transport lives in another panel, so the position arrives through the store
-  watch(() => store.playheads[slot], syncCursor);
+  watch(() => resolve().playhead, syncCursor);
 
-  // audioBuffers is reassigned wholesale on load/record/swap (never mutated in place),
-  // so a reference change here reliably means "different audio" — including a swap,
-  // which changes nothing else this composable already watches.
-  watch(() => store.audioBuffers[slot], async () => {
+  // Buffers are reassigned wholesale on load/record (never mutated in place), so a
+  // reference change here reliably means "different audio" for the currently shown
+  // target — a target switch is handled separately by the watch above, via init().
+  watch(() => resolve().buffer, async () => {
     if (!wave) return;
     await repaint();
     zoom.value = 1;
@@ -148,11 +228,11 @@ export function useWaveformSlot(
   function updateWaveformColors(): void {
     if (!wave) return;
 
-    const { regionColor, overlayColor, ...colors } = getWaveColors(slot);
+    const { regionColor, overlayColor, ...colors } = getWaveColors(resolve().colorKey);
     try {
       wave.setOptions(colors);
     } catch (error) {
-      logger.debug('WaveformSlot', `setOptions failed for ${slot}`, { error: String(error) });
+      logger.debug('WaveformSlot', `setOptions failed for ${currentLabel()}`, { error: String(error) });
     }
   }
 
@@ -166,15 +246,23 @@ export function useWaveformSlot(
     try {
       wave.destroy();
     } catch (error) {
-      logger.debug('WaveformSlot', `Destroy ${slot} failed`, { error: String(error) });
+      logger.debug('WaveformSlot', `Destroy ${currentLabel()} failed`, { error: String(error) });
     }
+    // MinimapPlugin doesn't reliably clean up its own wrapper on destroy — its wrapper is
+    // left behind in the host container, and the next init()'s minimap stacks on top of
+    // it instead of replacing it. Clearing the host ourselves guarantees a clean slate
+    // regardless of what the plugin's own teardown did or didn't do.
+    if (options.minimapContainer?.value) options.minimapContainer.value.innerHTML = '';
     wave = null;
     regions = null;
     spectrogram = null;
     scrollCleanup?.();
     scrollCleanup = null;
+    dblClickCleanup?.();
+    dblClickCleanup = null;
     scrollBar.value.visible = false;
     spectrogramCursor = null;
+    restoredRegionIds.clear();
   }
 
   async function init(): Promise<void> {
@@ -182,11 +270,11 @@ export function useWaveformSlot(
 
     const element = container.value;
     if (!element) {
-      logger.warn('WaveformSlot', `No container for waveform ${slot}`);
+      logger.warn('WaveformSlot', `No container for waveform ${currentLabel()}`);
       return;
     }
 
-    const audioData = store.audioBuffers[slot];
+    const audioData = resolve().buffer;
     if (audioData.length === 0) return;
 
     // A hidden or not-yet-laid-out container measures 0px wide and WaveSurfer would
@@ -194,7 +282,7 @@ export function useWaveformSlot(
     if (element.clientWidth === 0) {
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       if (element.clientWidth === 0) {
-        logger.warn('WaveformSlot', `Container ${slot} has zero width, skipping render`);
+        logger.warn('WaveformSlot', `Container ${currentLabel()} has zero width, skipping render`);
         return;
       }
     }
@@ -202,8 +290,9 @@ export function useWaveformSlot(
     destroy();
 
     try {
-      const sampleRate = store.sampleRates[slot];
-      const { regionColor, overlayColor, ...colors } = getWaveColors(slot);
+      const resolved = resolve();
+      const sampleRate = resolved.sampleRate;
+      const { regionColor, overlayColor, ...colors } = getWaveColors(resolved.colorKey);
 
       regions = RegionsPlugin.create();
 
@@ -259,7 +348,7 @@ export function useWaveformSlot(
         ...colors,
         height: 80,
         normalize: false,
-        peaks: [store.wavePeaks[slot]],
+        peaks: [resolved.peaks],
         duration: audioData.length / sampleRate,
         minPxPerSec: 1,
         autoScroll: true,
@@ -272,10 +361,14 @@ export function useWaveformSlot(
       regions.enableDragSelection({ color: regionColor, minLength: MIN_SELECTION_SEC });
 
       regions.on('region-created', (region: any) => {
-        // single selection per slot
+        // single selection per target
         for (const other of regions.getRegions()) {
           if (other.id !== region.id) other.remove();
         }
+        // restoreSelectionRegion's own addRegion(...) fires this same event — a previously
+        // stored (already-analyzed) selection must be redrawn as-is, not treated like a
+        // fresh user drag and widened/re-synced back onto the store.
+        if (restoredRegionIds.has(region.id)) return;
         // Deferred: the plugin is still finishing its own bookkeeping for this region,
         // and mutating it synchronously leaves the drag handler holding a stale edge
         setTimeout(() => {
@@ -283,13 +376,22 @@ export function useWaveformSlot(
           syncSelection(region);
         }, 0);
       });
-      regions.on('region-updated', (region: any) => syncSelection(region));
+      regions.on('region-updated', (region: any) => {
+        if (restoredRegionIds.has(region.id)) return;
+        syncSelection(region);
+      });
 
       // A click on the waveform is a seek. WaveSurfer has already moved its own cursor by
       // the time this fires; publishing the time is what makes the transport follow.
       wave.on('interaction', (time: number) => {
-        store.playheads[slot] = time;
+        resolve().setPlayhead(time);
       });
+
+      // A double-click's first click has already seeked (via 'interaction' above, twice) —
+      // clearing the selection on top of that is the same "start fresh here" gesture as a
+      // drag, just without one.
+      element.addEventListener('dblclick', clearSelection);
+      dblClickCleanup = () => element.removeEventListener('dblclick', clearSelection);
 
       hideNativeScrollbar(element);
       trackScroll();
@@ -298,14 +400,19 @@ export function useWaveformSlot(
       applyZoom();
       // A fresh instance renders at 0 — restore whatever the transport is already on
       syncCursor();
+      // A fresh regions plugin starts with nothing drawn — restore the store's selection
+      // now rather than leaving it to the buffer-identity watch below, which races this
+      // very function on a target switch and can lose (silently skip) the restore if it
+      // fires before `wave` exists.
+      restoreSelectionRegion();
 
-      logger.info('WaveformSlot', `Waveform ${slot} initialized`, {
+      logger.info('WaveformSlot', `Waveform ${currentLabel()} initialized`, {
         samples: audioData.length,
         sampleRate,
         width: element.clientWidth,
       });
     } catch (error) {
-      logger.error('WaveformSlot', `Failed to init waveform ${slot}`, { error: String(error) });
+      logger.error('WaveformSlot', `Failed to init waveform ${currentLabel()}`, { error: String(error) });
     }
   }
 
@@ -321,11 +428,12 @@ export function useWaveformSlot(
    */
   async function repaint(): Promise<void> {
     if (!wave) return;
-    const audioData = store.audioBuffers[slot];
+    const resolved = resolve();
+    const audioData = resolved.buffer;
     // The spectrogram keys its cache off the decoded buffer; new samples for the same
     // instance (normalize) must not repaint the old picture
     spectrogram?.clearCache?.();
-    await wave.load('', [store.wavePeaks[slot]], audioData.length / store.sampleRates[slot]);
+    await wave.load('', [resolved.peaks], audioData.length / resolved.sampleRate);
     syncCursor();
   }
 
@@ -344,11 +452,11 @@ export function useWaveformSlot(
   }
 
   function syncSelection(region: any): void {
-    const sampleRate = store.sampleRates[slot];
-    const total = store.audioBuffers[slot].length;
-    const startSample = Math.max(0, Math.round(region.start * sampleRate));
-    const endSample = Math.min(total, Math.round(region.end * sampleRate));
-    store.updateSelection(slot, startSample, endSample);
+    const resolved = resolve();
+    const total = resolved.buffer.length;
+    const startSample = Math.max(0, Math.round(region.start * resolved.sampleRate));
+    const endSample = Math.min(total, Math.round(region.end * resolved.sampleRate));
+    resolved.setSelection(startSample, endSample);
 
     options.onSelectionChange?.();
   }
@@ -362,16 +470,17 @@ export function useWaveformSlot(
     if (!regions) return;
     regions.clearRegions();
 
-    const selection = store.selections[slot];
+    const resolved = resolve();
+    const selection = resolved.selection;
     if (!selection || selection.endSample <= selection.startSample) return;
 
-    const sampleRate = store.sampleRates[slot];
-    const { regionColor } = getWaveColors(slot);
-    regions.addRegion({
-      start: selection.startSample / sampleRate,
-      end: selection.endSample / sampleRate,
+    const { regionColor } = getWaveColors(resolved.colorKey);
+    const region = regions.addRegion({
+      start: selection.startSample / resolved.sampleRate,
+      end: selection.endSample / resolved.sampleRate,
       color: regionColor,
     });
+    restoredRegionIds.add(region.id);
   }
 
   function getScroller(): HTMLElement | null {
@@ -413,7 +522,7 @@ export function useWaveformSlot(
    */
   function syncCursor(): void {
     if (!wave) return;
-    wave.setTime(store.playheads[slot] ?? 0);
+    wave.setTime(resolve().playhead ?? 0);
     keepCursorVisible();
     syncSpectrogramCursor();
   }
@@ -440,12 +549,12 @@ export function useWaveformSlot(
       spectrogramCursor.className = 'spectrogram-cursor';
       spectrogramCursor.style.cssText =
         `position: absolute; top: 0; bottom: 0; width: 1px; pointer-events: none; ` +
-        `z-index: 5; background-color: ${getWaveColors(slot).cursorColor};`;
+        `z-index: 5; background-color: ${getWaveColors(resolve().colorKey).cursorColor};`;
       wrapper.appendChild(spectrogramCursor);
     }
 
     const pxPerSec = (element.clientWidth / duration) * zoom.value;
-    const time = store.playheads[slot] ?? 0;
+    const time = resolve().playhead ?? 0;
     spectrogramCursor.style.left = `${time * pxPerSec}px`;
   }
 
@@ -454,7 +563,7 @@ export function useWaveformSlot(
    * zoomed in the cursor would walk off screen and stay there.
    */
   function keepCursorVisible(): void {
-    const time = store.playheads[slot];
+    const time = resolve().playhead;
     const el = getScroller();
     const duration = wave?.getDuration() ?? 0;
     if (time === null || !el || !duration) return;
@@ -570,11 +679,17 @@ export function useWaveformSlot(
     applyZoom({ time: anchorTime, offsetX });
   }
 
+  /** Clears the drag-selected analysis range — on its own via double-click, or as part
+   * of a full resetView(). */
+  function clearSelection(): void {
+    regions?.clearRegions();
+    resolve().setSelection(0, 0);
+  }
+
   function resetView(): void {
     zoom.value = 1;
     applyZoom();
-    regions?.clearRegions();
-    store.updateSelection(slot, 0, 0);
+    clearSelection();
   }
 
   return {
