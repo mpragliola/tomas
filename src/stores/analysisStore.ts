@@ -7,6 +7,7 @@ import type { GraphicEqBand, GraphicEqState } from '../types/graphicEq';
 import { createDefaultGraphicEqState } from '../types/graphicEq';
 import { logger } from '../services/logging';
 import { parseAudioFile } from '../services/audio/audioLoader';
+import { computeWavePeaks } from '../services/audio/waveformPeaks';
 import { computeAveragedFFT } from '../services/audio/fftProcessor';
 import { extractSpectrum } from '../services/dsp/spectrum';
 import { deriveToneCurve, renderToneMatchIR } from '../services/dsp/irDerivation';
@@ -35,6 +36,9 @@ export const useAnalysisStore = defineStore('analysis', () => {
   }
 
   const audioBuffers = ref({ A: new Float32Array(), B: new Float32Array() });
+  /** Decimated draw data for the waveform view — see computeWavePeaks. Selection/analysis
+   * math always reads audioBuffers (full resolution), never this. */
+  const wavePeaks = ref({ A: new Float32Array(), B: new Float32Array() });
   const sourceBuffers = ref({ A: new Float32Array(), B: new Float32Array() });
   const channelBuffers = ref({ A: [] as Float32Array[], B: [] as Float32Array[] });
   const normalized = ref({ A: false, B: false });
@@ -127,6 +131,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
 
     const parsed: AudioBuffer = await parseAudioFile(file);
     audioBuffers.value[slot] = parsed.audioData;
+    wavePeaks.value[slot] = computeWavePeaks(parsed.audioData);
     sourceBuffers.value[slot] = parsed.audioData;
     channelBuffers.value[slot] = parsed.channels;
     normalized.value[slot] = false;
@@ -181,6 +186,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     const sr = 44100; // Recorder uses 44100 Hz
 
     audioBuffers.value[slot] = audioData;
+    wavePeaks.value[slot] = computeWavePeaks(audioData);
     sourceBuffers.value[slot] = audioData;
     // The recorder picks a single input channel rather than summing, so a take is already
     // mono and there is nothing to deinterleave.
@@ -229,6 +235,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     const flip = <T>(pair: { A: T; B: T }): { A: T; B: T } => ({ A: pair.B, B: pair.A });
 
     audioBuffers.value = flip(audioBuffers.value);
+    wavePeaks.value = flip(wavePeaks.value);
     sourceBuffers.value = flip(sourceBuffers.value);
     channelBuffers.value = flip(channelBuffers.value);
     normalized.value = flip(normalized.value);
@@ -936,6 +943,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     stopPlayback();
 
     audioBuffers.value[slot] = new Float32Array();
+    wavePeaks.value[slot] = new Float32Array();
     sourceBuffers.value[slot] = new Float32Array();
     channelBuffers.value[slot] = [];
     normalized.value[slot] = false;
@@ -971,6 +979,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
 
   return {
     audioBuffers,
+    wavePeaks,
     sourceBuffers,
     normalized,
     normalizeGains,

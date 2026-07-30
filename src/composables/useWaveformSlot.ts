@@ -1,4 +1,9 @@
 import { nextTick, onUnmounted, ref, watch, type Ref } from 'vue';
+import WaveSurfer from 'wavesurfer.js';
+import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
+import HoverPlugin from 'wavesurfer.js/dist/plugins/hover.esm.js';
+import MinimapPlugin from 'wavesurfer.js/dist/plugins/minimap.esm.js';
+import SpectrogramPlugin from 'wavesurfer.js/dist/plugins/spectrogram.esm.js';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { logger } from '../services/logging';
 import type { SlotId } from '../types/audio';
@@ -111,6 +116,17 @@ export function useWaveformSlot(
   // The transport lives in another panel, so the position arrives through the store
   watch(() => store.playheads[slot], syncCursor);
 
+  // audioBuffers is reassigned wholesale on load/record/swap (never mutated in place),
+  // so a reference change here reliably means "different audio" — including a swap,
+  // which changes nothing else this composable already watches.
+  watch(() => store.audioBuffers[slot], async () => {
+    if (!wave) return;
+    await repaint();
+    zoom.value = 1;
+    applyZoom();
+    restoreSelectionRegion();
+  });
+
   // Watch for theme changes and update colors without reinit
   const currentTheme = ref(getTheme());
   const setupThemeObserver = () => {
@@ -186,19 +202,6 @@ export function useWaveformSlot(
     destroy();
 
     try {
-      const [
-        { default: WaveSurfer },
-        { default: RegionsPlugin },
-        { default: HoverPlugin },
-        { default: MinimapPlugin },
-        { default: SpectrogramPlugin },
-      ] = await Promise.all([
-        import('wavesurfer.js'),
-        import('wavesurfer.js/dist/plugins/regions.esm.js'),
-        import('wavesurfer.js/dist/plugins/hover.esm.js'),
-        import('wavesurfer.js/dist/plugins/minimap.esm.js'),
-        import('wavesurfer.js/dist/plugins/spectrogram.esm.js'),
-      ]);
       const sampleRate = store.sampleRates[slot];
       const { regionColor, overlayColor, ...colors } = getWaveColors(slot);
 
@@ -256,7 +259,7 @@ export function useWaveformSlot(
         ...colors,
         height: 80,
         normalize: false,
-        peaks: [audioData],
+        peaks: [store.wavePeaks[slot]],
         duration: audioData.length / sampleRate,
         minPxPerSec: 1,
         autoScroll: true,
@@ -306,18 +309,23 @@ export function useWaveformSlot(
     }
   }
 
-  /** Repaint from the store's current samples, keeping the instance — and therefore
-   * the selection region — alive, unlike a re-init. */
-  function repaint(): void {
+  /**
+   * Repaint from the store's current samples, keeping the instance — and therefore
+   * the selection region — alive, unlike a re-init.
+   *
+   * setOptions({ peaks, duration }) looks like the right call but is a no-op on an
+   * already-rendered instance: it swaps WaveSurfer's internal decoded buffer, but the
+   * renderer's reRender() repaints from its own cached copy, which only gets refreshed
+   * by the 'decode' path inside load(). Going through load() with the new peaks as
+   * pre-decoded channel data is what actually reaches the renderer.
+   */
+  async function repaint(): Promise<void> {
     if (!wave) return;
     const audioData = store.audioBuffers[slot];
     // The spectrogram keys its cache off the decoded buffer; new samples for the same
     // instance (normalize) must not repaint the old picture
     spectrogram?.clearCache?.();
-    wave.setOptions({
-      peaks: [audioData],
-      duration: audioData.length / store.sampleRates[slot],
-    });
+    await wave.load('', [store.wavePeaks[slot]], audioData.length / store.sampleRates[slot]);
     syncCursor();
   }
 
@@ -343,6 +351,27 @@ export function useWaveformSlot(
     store.updateSelection(slot, startSample, endSample);
 
     options.onSelectionChange?.();
+  }
+
+  /**
+   * Redraw the region from the store's selection rather than whatever the plugin still
+   * has on screen — after a swap the store's selection is already the new audio's, but
+   * the region graphic is still the old audio's.
+   */
+  function restoreSelectionRegion(): void {
+    if (!regions) return;
+    regions.clearRegions();
+
+    const selection = store.selections[slot];
+    if (!selection || selection.endSample <= selection.startSample) return;
+
+    const sampleRate = store.sampleRates[slot];
+    const { regionColor } = getWaveColors(slot);
+    regions.addRegion({
+      start: selection.startSample / sampleRate,
+      end: selection.endSample / sampleRate,
+      color: regionColor,
+    });
   }
 
   function getScroller(): HTMLElement | null {
