@@ -9,6 +9,11 @@ import { loadSamples } from '../../fixtures';
 
 const SAMPLE_RATE = 48000;
 
+// Setting both spectra trips the store's auto-IR watcher, which schedules itself via
+// `window.setTimeout`. This suite runs under vitest's node environment, so stub just
+// enough of `window` for that watcher to resolve instead of rejecting unhandled.
+(globalThis as any).window ??= globalThis;
+
 /**
  * Regression coverage for the IR download producing a 44-byte (header-only) WAV.
  *
