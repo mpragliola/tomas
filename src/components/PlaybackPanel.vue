@@ -16,21 +16,21 @@
           :class="['ab-btn', { active: activeMode === 'original' }]"
           title="Play the working sound untouched"
           @click="selectMode('original')"
-        >A · Original</button>
+        >A</button>
         <button
           type="button"
           :class="['ab-btn', { active: activeMode === 'processed' }]"
           :disabled="!hasIR"
           :title="hasIR ? 'Play the working sound through the derived IR' : 'Load a reference to derive an IR'"
           @click="selectMode('processed')"
-        >B · Processed</button>
+        >A + IR</button>
         <button
           type="button"
           :class="['ab-btn', { active: activeMode === 'reference' }]"
           :disabled="!hasReference"
           :title="hasReference ? 'Play the reference file' : 'No reference loaded'"
           @click="selectMode('reference')"
-        >C · Reference</button>
+        >B</button>
       </div>
 
       <!-- Transport -->
