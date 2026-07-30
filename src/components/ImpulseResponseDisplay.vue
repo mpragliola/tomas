@@ -314,7 +314,7 @@ function formatPeak(value: number): string {
  * its own, so 48 kHz is just as native as 44.1 kHz.
  */
 function downloadIR(targetRate: number): void {
-  const rendered = store.renderIRAt(targetRate, store.irTaps);
+  const rendered = store.renderIRAt(targetRate, store.irTaps.value);
   if (!rendered) return;
 
   const samples = rendered.coefficients;
