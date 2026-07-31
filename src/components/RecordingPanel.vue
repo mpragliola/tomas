@@ -32,16 +32,6 @@
         </span>
       </div>
 
-      <!-- Stop Recording Button (only when recording) -->
-      <button
-        v-if="isRecording"
-        type="button"
-        class="btn-stop"
-        @click="stopRecording"
-      >
-        ⏹ Stop — Recording into {{ targetLabel }}
-      </button>
-
       <!-- Level Meter -->
       <div class="level-meter">
         <div class="level-label">Level</div>
@@ -413,17 +403,6 @@ defineExpose({
   font-size: var(--font-size-label);
   color: var(--color-text-secondary);
   opacity: 0.8;
-}
-
-.btn-stop {
-  @include danger-action;
-  width: 100%;
-  animation: pulse-record 1s infinite;
-}
-
-@keyframes pulse-record {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.7; }
 }
 
 .armed-message {
