@@ -107,6 +107,7 @@ import { encodeWavPcm, encodeWavFloat32, downloadFile } from '../utils/fileUtils
 import type { ExportFormat } from '../utils/fileUtils';
 import { irMagnitudeResponse } from '../services/dsp/irResponse';
 import type { IrMagnitudeResponse } from '../services/dsp/irResponse';
+import type { ImpulseResponse } from '../types/ir';
 import Icon from './Icon.vue';
 import TooltipIcon from './TooltipIcon.vue';
 import AdvancedSettings from './AdvancedSettings.vue';
@@ -177,7 +178,27 @@ onMounted(() => {
 
 onUnmounted(() => {
   themeObserver?.disconnect();
+  if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
 });
+
+/** Last fully-settled (or mid-tween) frame drawn, so a fresh recompute can animate from
+ * however the canvas currently looks rather than jumping straight to the new shape. */
+let displayedTops: number[] | null = null;
+let displayedPoints: Array<[number, number]> | null = null;
+let animationFrameId: number | null = null;
+const TWEEN_MS = 350;
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
+}
 
 async function drawIR(): Promise<void> {
   // Let any pending render flush before touching the canvas
@@ -192,15 +213,80 @@ async function drawIR(): Promise<void> {
   const h = canvas.value.height;
   const centerY = h / 2;
 
-  // Clear canvas completely, then redraw background
+  if (animationFrameId !== null) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+
+  if (!ir.value) {
+    displayedTops = null;
+    displayedPoints = null;
+    renderBackground(ctx, w, h, centerY);
+    return;
+  }
+
+  const irSamples = ir.value.coefficients;
+  const newTops = computeWaveformTops(irSamples, w, h, centerY);
+  const newPoints = computeResponsePoints(ir.value, w, h, centerY);
+
+  const canTween =
+    !prefersReducedMotion() &&
+    displayedTops &&
+    displayedPoints &&
+    displayedTops.length === newTops.length &&
+    displayedPoints.length === newPoints.length;
+
+  if (canTween) {
+    animateIR(ctx, w, h, centerY, displayedTops!, newTops, displayedPoints!, newPoints);
+  } else {
+    renderFrame(ctx, w, h, centerY, newTops, newPoints);
+    displayedTops = newTops;
+    displayedPoints = newPoints;
+  }
+
+  logger.debug('ImpulseResponseDisplay', 'IR drawn', { samples: irSamples.length });
+}
+
+function animateIR(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  centerY: number,
+  fromTops: number[],
+  toTops: number[],
+  fromPoints: Array<[number, number]>,
+  toPoints: Array<[number, number]>,
+): void {
+  let startTime: number | null = null;
+
+  const step = (timestamp: number): void => {
+    if (startTime === null) startTime = timestamp;
+    const t = Math.min(1, (timestamp - startTime) / TWEEN_MS);
+    const eased = easeOutCubic(t);
+
+    const tops = fromTops.map((v, i) => lerp(v, toTops[i], eased));
+    const points: Array<[number, number]> = fromPoints.map(([x, y], i) => [x, lerp(y, toPoints[i][1], eased)]);
+    renderFrame(ctx, w, h, centerY, tops, points);
+    displayedTops = tops;
+    displayedPoints = points;
+
+    if (t < 1) {
+      animationFrameId = requestAnimationFrame(step);
+    } else {
+      animationFrameId = null;
+      displayedTops = toTops;
+      displayedPoints = toPoints;
+    }
+  };
+
+  animationFrameId = requestAnimationFrame(step);
+}
+
+function renderBackground(ctx: CanvasRenderingContext2D, w: number, h: number, centerY: number): void {
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = 'rgba(26, 26, 26, 1)';
   ctx.fillRect(0, 0, w, h);
 
-  if (!ir.value) return;
-  const irSamples = ir.value.coefficients;
-
-  // Draw grid
   ctx.strokeStyle = 'rgba(230, 230, 230, 0.1)';
   ctx.lineWidth = 0.5;
   ctx.beginPath();
@@ -208,18 +294,25 @@ async function drawIR(): Promise<void> {
   ctx.lineTo(w, centerY);
   ctx.stroke();
 
-  // Draw zero line
   ctx.strokeStyle = 'rgba(153, 153, 153, 0.3)';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(0, centerY);
   ctx.lineTo(w, centerY);
   ctx.stroke();
+}
 
-  drawResponseOverlay(ctx, w, h, centerY);
-  drawWaveform(ctx, irSamples, w, h, centerY);
-
-  logger.debug('ImpulseResponseDisplay', 'IR drawn', { samples: irSamples.length });
+function renderFrame(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  centerY: number,
+  tops: number[],
+  points: Array<[number, number]>,
+): void {
+  renderBackground(ctx, w, h, centerY);
+  renderResponseOverlay(ctx, centerY, points);
+  renderWaveform(ctx, w, centerY, tops);
 }
 
 function getTheme(): string {
@@ -247,13 +340,7 @@ function getIRColors() {
  * Filled rather than stroked so it reads as a solid mass under the spectrum's outline,
  * with opacity keeping the spectrum curve visible through it.
  */
-function drawWaveform(
-  ctx: CanvasRenderingContext2D,
-  irSamples: Float32Array,
-  w: number,
-  h: number,
-  centerY: number,
-): void {
+function computeWaveformTops(irSamples: Float32Array, w: number, h: number, centerY: number): number[] {
   const halfHeight = h / 2 - 2;
   const maxPeakVal = peak(irSamples);
 
@@ -263,7 +350,10 @@ function drawWaveform(
     const sample = irSamples[Math.min(idx, irSamples.length - 1)] || 0;
     tops.push(centerY - (sample / (maxPeakVal || 1)) * halfHeight);
   }
+  return tops;
+}
 
+function renderWaveform(ctx: CanvasRenderingContext2D, w: number, centerY: number, tops: number[]): void {
   ctx.beginPath();
   ctx.moveTo(0, centerY);
   tops.forEach((y, i) => ctx.lineTo(i, y));
@@ -278,17 +368,15 @@ function drawWaveform(
  * the canvas centre line — so a boost fills upward and a cut downward from the same line
  * the waveform is drawn around.
  */
-function drawResponseOverlay(
-  ctx: CanvasRenderingContext2D,
+function computeResponsePoints(
+  ir: ImpulseResponse,
   w: number,
   h: number,
   centerY: number,
-): void {
-  if (!ir.value) return;
-
+): Array<[number, number]> {
   // Shorter FFT than the plot uses: at 280 px wide the extra resolution is invisible.
-  const response = irMagnitudeResponse(ir.value, 4096);
-  const nyquist = ir.value.sampleRate / 2;
+  const response = irMagnitudeResponse(ir, 4096);
+  const nyquist = ir.sampleRate / 2;
   const logMin = Math.log10(20);
   const logMax = Math.log10(nyquist);
   const span = Math.max(6, response.maxAbsDb * 1.15);
@@ -300,7 +388,14 @@ function drawResponseOverlay(
     const db = responseDbAt(response, hz);
     points.push([x, centerY - (db / span) * halfHeight]);
   }
+  return points;
+}
 
+function renderResponseOverlay(
+  ctx: CanvasRenderingContext2D,
+  centerY: number,
+  points: Array<[number, number]>,
+): void {
   const colors = getIRColors();
   ctx.beginPath();
   ctx.moveTo(points[0][0], centerY);

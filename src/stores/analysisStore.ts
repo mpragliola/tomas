@@ -708,6 +708,11 @@ export const useAnalysisStore = defineStore('analysis', () => {
     // path into recomputeReference too — e.g. a tab that had audio removed mid-flight).
     if (!ref || ref.assetId === null) return;
     await computeReferenceSpectrum(id, fftConfig.value);
+    // A may not be loaded yet (e.g. a reference tab loaded/edited before A). Tone-match IR
+    // needs spectrumA; without it there's nothing to derive yet, so leave `stale` set and
+    // let the spectrumA watch pick this reference up once A lands, rather than throwing on
+    // every selection change in the meantime.
+    if (!spectrumA.value) return;
     await computeReferenceToneMatchIR(id, ref.toneMatchConfig);
     ref.stale = false;
   }

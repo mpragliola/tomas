@@ -408,6 +408,10 @@ export function useSpectrumPlot(
       }
 
       const config = { responsive: true, displayModeBar: false };
+      // Only the update path (react) gets a transition — newPlot has nothing to tween
+      // from, and per-frame live restyles bypass react entirely, so this only smooths
+      // recomputes of the static A/B/IR/Graphic EQ traces.
+      const reactConfig = { ...config, transition: { duration: 400, easing: 'cubic-in-out' } };
 
       if (traces.length === 0) {
         if (plotInitialized) {
@@ -429,7 +433,7 @@ export function useSpectrumPlot(
       } else {
         plotBusy = true;
         try {
-          await Plotly.react(plotContainer.value, traces, layout, config);
+          await Plotly.react(plotContainer.value, traces, layout, reactConfig);
         } finally {
           plotBusy = false;
         }
