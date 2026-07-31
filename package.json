@@ -9,10 +9,12 @@
     "fixtures:generate": "node scripts/generate-test-tones.mjs",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "feather-icons": "^4.29.2",
+    "fflate": "^0.8.3",
     "fft.js": "^4.0.3",
     "pinia": "^4.0.2",
     "plotly.js": "^3.7.0",

@@ -39,8 +39,8 @@ export function useSpectrumPlot(
    * The x log-range and y2 dB span the plot is currently drawn at, so `GraphicEqOverlay`
    * can convert between screen pixels and frequency/gain without reaching into Plotly's
    * own (private, version-fragile) layout internals. Defaults to a sane range before the
-   * first plot: the overlay only ever mounts once `store.toneCurve` exists, by which
-   * point a real plot has run and this holds real values.
+   * first plot: the overlay only ever mounts once the active reference's `toneCurve`
+   * exists, by which point a real plot has run and this holds real values.
    */
   const plotAxisRange = ref<{ xRange: [number, number]; ySpan: number }>({
     xRange: [Math.log10(MIN_PLOT_FREQ), Math.log10(FALLBACK_MAX_FREQ)],
@@ -170,7 +170,9 @@ export function useSpectrumPlot(
       const fontFamily = rootStyle.getPropertyValue('--font-body').trim() || 'sans-serif';
 
       const traces: any[] = [];
-      const { A, B } = store.spectra;
+      const A = store.spectrumA;
+      const activeId = store.activeReferenceId;
+      const B = activeId ? store.references[activeId]?.spectrum ?? null : null;
 
       captureLegendState();
       const isShown = (id: string) => legendState.get(id) ?? true;
@@ -286,7 +288,8 @@ export function useSpectrumPlot(
         });
       }
 
-      const irResponse = store.ir ? irMagnitudeResponse(store.ir) : null;
+      const activeIr = activeId ? store.references[activeId]?.ir ?? null : null;
+      const irResponse = activeIr ? irMagnitudeResponse(activeIr) : null;
 
       if (irResponse) {
         irTraceIndex = traces.length;
@@ -307,9 +310,10 @@ export function useSpectrumPlot(
 
         // The graphic EQ's own shape, shown alongside the combined IR trace above so
         // it's clear what the bands are contributing versus what the tone match found.
-        if (store.graphicEq.enabled) {
+        const activeGraphicEq = activeId ? store.references[activeId]?.graphicEq : undefined;
+        if (activeGraphicEq?.enabled) {
           graphicEqTraceIndex = traces.length;
-          const eqDb = graphicEqResponseDb(store.graphicEq.bands, irResponse.frequencies, store.ir!.sampleRate);
+          const eqDb = graphicEqResponseDb(activeGraphicEq.bands, irResponse.frequencies, activeIr!.sampleRate);
           traces.push({
             x: Array.from(irResponse.frequencies),
             y: Array.from(eqDb),
@@ -461,26 +465,35 @@ export function useSpectrumPlot(
    * Cheap live preview while a band handle is being dragged: recompute the combined
    * curve directly on `toneCurve`'s own grid and restyle just the IR + Graphic EQ
    * traces, skipping the expensive minimum-phase FIR re-render entirely. Once that
-   * debounced re-render lands in the store, `store.ir` changes, the full-rebuild watch
+   * debounced re-render lands in the store, the active reference's `ir` changes, the full-rebuild watch
    * in `SpectrumViewer.vue` fires, and both traces snap back onto `irMagnitudeResponse`'s
    * own grid — no special "restore" branch needed here.
    */
   watch(
-    () => store.graphicEq,
+    // A function re-evaluated on every run, not a snapshot taken at setup time — reading
+    // `activeReferenceId` fresh here means switching tabs re-targets this watch at the
+    // newly active tab's EQ instead of staying bound to whichever was active when the
+    // watch was created.
+    () => {
+      const id = store.activeReferenceId;
+      return id ? store.references[id]?.graphicEq : null;
+    },
     () => {
       if (!plotInitialized || plotBusy || !plotContainer.value || !Plotly) return;
-      if (!store.toneCurve || irTraceIndex < 0) return;
+      const id = store.activeReferenceId;
+      const ref = id ? store.references[id] : null;
+      if (!ref?.toneCurve || irTraceIndex < 0) return;
 
-      const { frequencies, curveDb } = store.toneCurve;
+      const { frequencies, curveDb } = ref.toneCurve;
       const eqDb = graphicEqResponseDb(
-        store.graphicEq.bands,
+        ref.graphicEq.bands,
         frequencies,
-        store.ir?.sampleRate ?? store.sampleRates.A,
+        ref.ir?.sampleRate ?? store.sampleRateA,
       );
 
       const combinedDb = new Float32Array(curveDb.length);
       for (let i = 0; i < combinedDb.length; i++) {
-        combinedDb[i] = curveDb[i] + (store.graphicEq.enabled ? eqDb[i] : 0);
+        combinedDb[i] = curveDb[i] + (ref.graphicEq.enabled ? eqDb[i] : 0);
       }
 
       const freqArray = Array.from(frequencies);

@@ -39,7 +39,7 @@
         class="btn-stop"
         @click="stopRecording"
       >
-        ⏹ Stop — Wave {{ activeSlot === 'A' ? 1 : 2 }}
+        ⏹ Stop — Recording into {{ targetLabel }}
       </button>
 
       <!-- Level Meter -->
@@ -165,15 +165,24 @@ import { ref, computed, onUnmounted } from 'vue';
 import TooltipIcon from './TooltipIcon.vue';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { logger } from '../services/logging';
-import type { RecorderConfig, SlotId } from '../types/audio';
+import type { RecorderConfig } from '../types/audio';
 import { MIN_ANALYSIS_SECONDS } from '../services/dsp/defaults';
 import { useAudioDevices } from '../composables/useAudioDevices';
 import { useMonitor } from '../composables/useMonitor';
 import { getArcPath, getThresholdNotch, arcDbFromPointer } from '../utils/vuMeter';
 import { formatDurationMs } from '../utils/audioFormat';
+import type { RecordTarget } from '../types/audio';
 
 const store = useAnalysisStore();
 const isRecording = ref(false);
+/** Remembered for the duration of the take, so stopRecording/the button label know what
+ * to finish into without re-reading the caller's intent (the caller may have moved on to
+ * a different tab by the time Stop is pressed). */
+const recordTarget = ref<RecordTarget>('A');
+const targetLabel = computed(() => {
+  if (recordTarget.value === 'A') return 'Wave 1';
+  return store.references[recordTarget.value.referenceId]?.label ?? 'reference';
+});
 const currentLevelDb = ref(-60);
 const recordedDuration = ref(0);
 const maxDuration = ref(20000);
@@ -181,7 +190,6 @@ const autoTriggerEnabled = ref(false);
 /** Stream open, metering, but holding capture until the threshold is crossed. */
 const isArmed = ref(false);
 const thresholdDb = ref(-40);
-const activeSlot = ref<SlotId>('A');
 const statusMessage = ref('');
 let animationId: number | null = null;
 
@@ -215,10 +223,10 @@ function onArcPointerUp(event: PointerEvent): void {
 }
 
 const emit = defineEmits<{
-  'recorded': [{ slot: SlotId; samples: number }];
+  'recorded': [{ samples: number }];
 }>();
 
-async function startRecording(slot: SlotId = 'A'): Promise<void> {
+async function startRecording(target: RecordTarget = 'A'): Promise<void> {
   if (isRecording.value) return;
   if (isMonitoring.value) stopMonitor();
 
@@ -234,8 +242,8 @@ async function startRecording(slot: SlotId = 'A'): Promise<void> {
     };
 
     statusMessage.value = '';
-    await store.recordAudio(config, slot);
-    activeSlot.value = slot;
+    recordTarget.value = target;
+    await store.recordAudio(config, target);
     isRecording.value = true;
     recordedDuration.value = 0;
 
@@ -251,15 +259,20 @@ async function startRecording(slot: SlotId = 'A'): Promise<void> {
     }
 
     animationId = setInterval(updateMeters, 50);
-    logger.info('RecordingPanel', 'Recording started', { slot });
+    logger.info('RecordingPanel', 'Recording started');
   } catch (error) {
     logger.error('RecordingPanel', 'Failed to start recording', { error: String(error) });
     isRecording.value = false;
   }
 }
 
+function recordedReferenceSamples(referenceId: string): number {
+  const assetId = store.references[referenceId]?.assetId;
+  return assetId ? store.audioAssets[assetId]?.buffer.length ?? 0 : 0;
+}
+
 async function stopRecording(): Promise<void> {
-  // Stop can arrive twice — from the slot button and from the meter poll noticing
+  // Stop can arrive twice — from the panel button and from the meter poll noticing
   // that capture already ended
   if (!isRecording.value) return;
   isRecording.value = false;
@@ -270,20 +283,24 @@ async function stopRecording(): Promise<void> {
   }
   isArmed.value = false;
 
-  const slot = activeSlot.value;
-
   try {
-    await store.stopRecording(slot);
+    const target = recordTarget.value;
+    await store.stopRecording();
 
-    const samples = store.audioBuffers[slot].length;
-    // The spectrum is auto-computed on save; if it did not land, the take was
-    // rejected as too short and nothing downstream would have run
-    statusMessage.value = store.spectra[slot]
-      ? ''
-      : `Take too short to analyse — record at least ${MIN_ANALYSIS_SECONDS}s`;
-    emit('recorded', { slot, samples });
+    const samples = target === 'A' ? store.audioBufferA.length : recordedReferenceSamples(target.referenceId);
 
-    logger.info('RecordingPanel', 'Recording stopped', { slot, samples });
+    // The spectrum is auto-computed on save for A; for a reference it's only attempted
+    // immediately when that tab happens to be the active one (mirrors how filling an
+    // empty tab via file load behaves). Only A's "too short" hint is shown here — a
+    // reference that wasn't active never got a compute attempt to fail in the first
+    // place, so silence (rather than a false "too short") is the honest read there.
+    statusMessage.value =
+      target === 'A' && !store.spectrumA
+        ? `Take too short to analyse — record at least ${MIN_ANALYSIS_SECONDS}s`
+        : '';
+    emit('recorded', { samples });
+
+    logger.info('RecordingPanel', 'Recording stopped', { samples });
   } catch (error) {
     logger.error('RecordingPanel', 'Failed to stop recording', { error: String(error) });
   } finally {

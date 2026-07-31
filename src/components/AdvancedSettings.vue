@@ -38,6 +38,7 @@
           </div>
         </div>
 
+        <template v-if="toneMatchConfig">
         <div class="divider" />
 
         <div class="section">
@@ -48,7 +49,7 @@
               <label class="input-label">Filter Taps</label>
               <TooltipIcon text="Length of the rendered minimum-phase FIR. More taps resolve the low end more precisely; hardware IR loaders usually expect 1024 or 2048." />
             </div>
-            <select :value="store.toneMatchConfig.taps" class="input-select" @change="store.setToneMatchConfig({ taps: Number(($event.target as HTMLSelectElement).value) })">
+            <select :value="toneMatchConfig.taps" class="input-select" @change="store.setToneMatchConfig({ taps: Number(($event.target as HTMLSelectElement).value) })">
               <option value="512">512</option>
               <option value="1024">1024</option>
               <option value="2048">2048</option>
@@ -63,7 +64,7 @@
             </div>
             <input
               type="number"
-              :value="store.toneMatchConfig.maxBoostDb"
+              :value="toneMatchConfig.maxBoostDb"
               min="0" max="36" step="1"
               class="input-number"
               @change="store.setToneMatchConfig({ maxBoostDb: Number(($event.target as HTMLInputElement).value) })"
@@ -77,7 +78,7 @@
             </div>
             <input
               type="number"
-              :value="store.toneMatchConfig.maxCutDb"
+              :value="toneMatchConfig.maxCutDb"
               min="0" max="48" step="1"
               class="input-number"
               @change="store.setToneMatchConfig({ maxCutDb: Number(($event.target as HTMLInputElement).value) })"
@@ -89,7 +90,7 @@
               <label class="input-label">Smoothing</label>
               <TooltipIcon text="Fractional-octave width the two spectra are smoothed to before they're compared. Wider follows broad tonal shape; narrower chases individual resonances and picks up more noise." />
             </div>
-            <select :value="store.toneMatchConfig.smoothingOctave" class="input-select" @change="store.setToneMatchConfig({ smoothingOctave: Number(($event.target as HTMLSelectElement).value) })">
+            <select :value="toneMatchConfig.smoothingOctave" class="input-select" @change="store.setToneMatchConfig({ smoothingOctave: Number(($event.target as HTMLSelectElement).value) })">
               <option :value="1 / 3">1/3 octave</option>
               <option :value="1 / 6">1/6 octave</option>
               <option :value="1 / 12">1/12 octave</option>
@@ -105,7 +106,7 @@
             <div class="input-pair">
               <input
                 type="number"
-                :value="store.toneMatchConfig.matchLowHz"
+                :value="toneMatchConfig.matchLowHz"
                 min="10" max="500" step="5"
                 class="input-number"
                 @change="store.setToneMatchConfig({ matchLowHz: Number(($event.target as HTMLInputElement).value) })"
@@ -113,7 +114,7 @@
               <span class="input-sep">to</span>
               <input
                 type="number"
-                :value="store.toneMatchConfig.matchHighHz"
+                :value="toneMatchConfig.matchHighHz"
                 min="1000" max="22000" step="500"
                 class="input-number"
                 @change="store.setToneMatchConfig({ matchHighHz: Number(($event.target as HTMLInputElement).value) })"
@@ -129,7 +130,7 @@
             <div class="input-pair">
               <input
                 type="number"
-                :value="store.toneMatchConfig.snrFloorDb"
+                :value="toneMatchConfig.snrFloorDb"
                 min="-200" max="60" step="1"
                 class="input-number"
                 @change="store.setToneMatchConfig({ snrFloorDb: Number(($event.target as HTMLInputElement).value) })"
@@ -137,7 +138,7 @@
               <span class="input-sep">to</span>
               <input
                 type="number"
-                :value="store.toneMatchConfig.snrFullDb"
+                :value="toneMatchConfig.snrFullDb"
                 min="-199" max="60" step="1"
                 class="input-number"
                 @change="store.setToneMatchConfig({ snrFullDb: Number(($event.target as HTMLInputElement).value) })"
@@ -146,19 +147,28 @@
           </div>
 
         </div>
+        </template>
       </div>
     </Transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useAnalysisStore } from '../stores/analysisStore';
 import Icon from './Icon.vue';
 import TooltipIcon from './TooltipIcon.vue';
 
 const store = useAnalysisStore();
 const open = ref(false);
+
+/** The active reference's tone-match config, or null while nothing is active — the
+ * Tone Match section hides itself entirely in that case, matching how
+ * ImpulseResponseDisplay.vue gates its own content on `v-if="ir"`. */
+const toneMatchConfig = computed(() => {
+  const id = store.activeReferenceId;
+  return id ? store.references[id]?.toneMatchConfig ?? null : null;
+});
 </script>
 
 <style lang="scss" scoped>

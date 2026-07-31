@@ -2,7 +2,6 @@ import { ref } from 'vue';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { logger } from '../services/logging';
 import { SUPPORTED_AUDIO_EXTENSIONS, isSupportedAudioFile } from '../services/audio/audioLoader';
-import type { SlotId } from '../types/audio';
 
 const MAX_SIZE = 100 * 1024 * 1024; // 100MB
 
@@ -12,8 +11,8 @@ export interface AudioFileLoaderOptions {
   onError?: (message: string, durationMs: number) => void;
 }
 
-/** Picking, dropping and validating one slot's audio file. No rendering concerns. */
-export function useAudioFileLoader(slot: SlotId, options: AudioFileLoaderOptions = {}) {
+/** Picking, dropping and validating A's audio file. No rendering concerns. */
+export function useAudioFileLoader(options: AudioFileLoaderOptions = {}) {
   const store = useAnalysisStore();
   const acceptAttr = SUPPORTED_AUDIO_EXTENSIONS.join(',');
   const file = ref<File | null>(null);
@@ -21,7 +20,7 @@ export function useAudioFileLoader(slot: SlotId, options: AudioFileLoaderOptions
   const dragActive = ref(false);
 
   function reject(message: string, context?: Record<string, unknown>): void {
-    logger.warn('AudioFileLoader', message, { slot, ...context });
+    logger.warn('AudioFileLoader', message, context);
     options.onError?.(message, 3000);
   }
 
@@ -48,16 +47,16 @@ export function useAudioFileLoader(slot: SlotId, options: AudioFileLoaderOptions
     loading.value = true;
     file.value = candidate;
     try {
-      await store.loadFile(candidate, slot);
+      await store.loadFile(candidate);
       options.onLoaded?.(candidate);
-      logger.info('AudioFileLoader', `File loaded: ${slot}`, {
+      logger.info('AudioFileLoader', 'File loaded: A', {
         fileName: candidate.name,
         size: candidate.size,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      logger.error('AudioFileLoader', `Failed to load file ${slot}`, { error: message });
-      options.onError?.(`Failed to load ${slot}: ${message}`, 5000);
+      logger.error('AudioFileLoader', 'Failed to load file A', { error: message });
+      options.onError?.(`Failed to load A: ${message}`, 5000);
       file.value = null;
     } finally {
       loading.value = false;
@@ -76,13 +75,13 @@ export function useAudioFileLoader(slot: SlotId, options: AudioFileLoaderOptions
 
     const dropped = Array.from(files).find((f) => isSupportedAudioFile(f.name));
     if (dropped) await loadFile(dropped);
-    else logger.warn('AudioFileLoader', 'Dropped file is not a supported audio type', { slot });
+    else logger.warn('AudioFileLoader', 'Dropped file is not a supported audio type');
   }
 
   function clear(): void {
     file.value = null;
-    store.clearFile(slot);
-    logger.info('AudioFileLoader', `File cleared: ${slot}`);
+    store.clearFile();
+    logger.info('AudioFileLoader', 'File cleared: A');
   }
 
   return {

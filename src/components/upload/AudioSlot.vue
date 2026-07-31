@@ -27,7 +27,7 @@
       />
 
       <WaveformEditor
-        :slot-id="slotId"
+        target="A"
         :active="showWaveform"
         @clear="clearSlot"
         @status="setStatus"
@@ -82,10 +82,8 @@ import WaveformEditor from './WaveformEditor.vue';
 import { useAnalysisStore } from '../../stores/analysisStore';
 import { useAudioFileLoader } from '../../composables/useAudioFileLoader';
 import { useStatusMessage } from '../../composables/useStatusMessage';
-import type { SlotId } from '../../types/audio';
 
 const props = defineProps<{
-  slotId: SlotId;
   title: string;
   tooltipText: string;
 }>();
@@ -107,18 +105,15 @@ function setStatus(text: string, durationMs?: number): void {
   else clearStatus();
 }
 
-const { acceptAttr, loading, dragActive, handleFileSelect, handleDrop, clear } = useAudioFileLoader(
-  props.slotId,
-  {
-    onLoaded: (file) => emit('file-loaded', file),
-    onError: show,
-  },
-);
+const { acceptAttr, loading, dragActive, handleFileSelect, handleDrop, clear } = useAudioFileLoader({
+  onLoaded: (file) => emit('file-loaded', file),
+  onError: show,
+});
 
 // Driven by the store, not by the picked File — so recordings show a waveform too
-const hasAudio = computed(() => store.audioBuffers[props.slotId].length > 0);
+const hasAudio = computed(() => store.audioBufferA.length > 0);
 
-const sourceName = computed(() => (hasAudio.value ? store.sourceNames[props.slotId] : ''));
+const sourceName = computed(() => (hasAudio.value ? store.sourceNameA : ''));
 
 /** Trailing run kept out of the ellipsis — long enough for the extension and a little of the stem. */
 const TAIL_CHARS = 8;
@@ -130,8 +125,8 @@ const nameTail = computed(() =>
 );
 
 // Stop lives here, in place of Record — the recording panel is below the fold in the sidebar
-const isRecordingHere = computed(() => store.recordingSlot === props.slotId);
-const recordingElsewhere = computed(() => store.recordingSlot !== null && !isRecordingHere.value);
+const isRecordingHere = computed(() => store.recordingTarget === 'A');
+const recordingElsewhere = computed(() => store.recordingTarget !== null && !isRecordingHere.value);
 
 // The waveform block must be visible before WaveSurfer measures the container,
 // otherwise it renders a zero-width canvas

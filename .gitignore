@@ -16,6 +16,12 @@ pnpm-debug.log
 dist
 .vite
 
+# Playwright
+test-results
+playwright-report
+blob-report
+playwright/.cache
+
 # Environment
 .env
 .env.local

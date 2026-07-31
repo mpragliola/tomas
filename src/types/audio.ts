@@ -1,5 +1,21 @@
-/** A is the working sound, B is the reference tone. */
-export type SlotId = 'A' | 'B';
+import type { FrequencySpectrum } from './spectrum';
+import type { ImpulseResponse, ToneCurve } from './ir';
+import type { GraphicEqState } from './graphicEq';
+import type { ToneMatchConfig } from '../services/dsp/irDerivation';
+
+/**
+ * Which take a recording or a source-resolving helper is being asked about: A (the
+ * working sound), or a specific reference tab's asset. B used to be *the* reference
+ * tone, back when there was only one — the analysis store now supports up to
+ * `MAX_REFERENCES` reference tabs (`ReferenceState`), so `'B'` no longer names anything
+ * the store or app understands.
+ *
+ * Recording used to target A only; that restriction has been reversed for reference
+ * tabs (any tab, empty or not, can be filled by a live take), so this is exported here
+ * rather than kept store-internal — both the store's `recordingTarget`/`recordAudio`
+ * and `.vue` components (`RecordingPanel`, `ReferenceSlot`) need the identical shape.
+ */
+export type RecordTarget = 'A' | { referenceId: string };
 
 /**
  * What the transport is playing: A dry, A through the derived IR, or the reference
@@ -66,4 +82,63 @@ export interface RecorderState {
   inputChannels: number;
   /** The channel being kept, 0-based — the requested one unless the device has fewer. */
   channelIndex: number;
+}
+
+/**
+ * A decoded reference file, kept independent of any tab that plays it back.
+ *
+ * `buffer` collapses what used to be two parallel copies (`audioBuffers`/`sourceBuffers`)
+ * for a slot — every write site set both to the same value, so there was never a second
+ * copy to keep. One `AudioAsset` can be pointed at by several `ReferenceState`s at once
+ * (a clone shares the decoded audio, not the computed tone match), so it is deduped here
+ * rather than living inside the tab.
+ */
+export interface AudioAsset {
+  id: string;
+  /** Mono mixdown — what the waveform and transport read. */
+  buffer: Float32Array;
+  /** The same take, deinterleaved. Analysis reads this; see `AudioBuffer.channels`. */
+  channels: Float32Array[];
+  /** Decimated draw data for the waveform view — see computeWavePeaks. Selection/analysis
+   * math always reads `buffer` (full resolution), never this. */
+  wavePeaks: Float32Array;
+  sampleRate: number;
+  header: WavHeader | null;
+  sourceName: string;
+}
+
+export interface ReferenceSelection {
+  startSample: number;
+  endSample: number;
+  duration: number;
+}
+
+/**
+ * One reference tab: a loop/selection into an `AudioAsset`, plus everything derived
+ * from comparing that selection against the working take (A) — its own spectrum, tone
+ * curve, rendered IR and graphic EQ. Two tabs sharing an `assetId` (a clone) never share
+ * any of that derived state, even if their selections happen to match.
+ */
+export interface ReferenceState {
+  id: string;
+  /** -> `audioAssets[assetId]`. Shared across clones of the same file. Null for a tab
+   * created empty (via "+") that hasn't been filled in yet by a file load or a take. */
+  assetId: string | null;
+  selection: ReferenceSelection;
+  spectrum: FrequencySpectrum | null;
+  ir: ImpulseResponse | null;
+  /**
+   * The correction as a frequency curve, kept so the filter can be re-rendered at any
+   * rate or tap count without re-analysing the audio. See `ToneCurve` for why this,
+   * not `ir`, is what the analysis actually produced.
+   */
+  toneCurve: ToneCurve | null;
+  graphicEq: GraphicEqState;
+  toneMatchConfig: ToneMatchConfig;
+  /** Where the transport is on this tab's own timeline, in seconds — null when idle. */
+  playhead: number | null;
+  /** `sourceName`, disambiguated ("kick.wav (2)") on collision with another tab. */
+  label: string;
+  /** True when A's spectrum or this tab's own selection/config changed since last compute. */
+  stale: boolean;
 }

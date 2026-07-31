@@ -28,7 +28,7 @@
           type="button"
           :class="['ab-btn', { active: activeMode === 'reference' }]"
           :disabled="!hasReference"
-          :title="hasReference ? 'Play the reference file' : 'No reference loaded'"
+          :title="hasReference ? `Play «${activeReferenceLabel ?? 'the reference'}»` : 'No reference loaded'"
           @click="selectMode('reference')"
         >B</button>
       </div>
@@ -92,7 +92,7 @@
           <span class="separator">/</span>
           <span class="total-time">{{ formatTimeSecs(totalTime) }}</span>
         </span>
-        <span class="seek-hint">click waveform {{ activeSlot }} to seek</span>
+        <span class="seek-hint">click waveform {{ activeSlot === 'A' ? 'A' : (activeReferenceLabel ?? 'reference') }} to seek</span>
       </div>
 
       <!-- Status -->
@@ -106,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { logger } from '../services/logging';
 import Icon from './Icon.vue';
@@ -125,6 +125,7 @@ const {
   statusMessage,
   activeMode,
   activeSlot,
+  activeReferenceLabel,
   currentTime,
   totalTime,
   hasAudio,
@@ -138,6 +139,28 @@ const {
 function togglePlayback(): Promise<void> {
   return _togglePlayback(volume.value);
 }
+
+/**
+ * Space toggles play/pause from anywhere on the page — except while the user is actually
+ * typing/picking in a form control, where Space has its own job (typing a space, toggling
+ * a checkbox, stepping a select) that this must not steal.
+ */
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || target.isContentEditable;
+}
+
+function handleGlobalKeydown(event: KeyboardEvent): void {
+  if (event.code !== 'Space' || event.repeat) return;
+  if (isTypingTarget(event.target)) return;
+  if (!hasAudio.value) return;
+  event.preventDefault();
+  togglePlayback();
+}
+
+onMounted(() => window.addEventListener('keydown', handleGlobalKeydown));
+onUnmounted(() => window.removeEventListener('keydown', handleGlobalKeydown));
 
 // The gain node stays in the graph for the whole take, so this lands on what is already
 // sounding — no restart, and no waiting for the next Play for the fader to mean anything

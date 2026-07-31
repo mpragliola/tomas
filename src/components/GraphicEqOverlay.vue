@@ -42,6 +42,13 @@ interface Props {
 const props = defineProps<Props>();
 const store = useAnalysisStore();
 
+/** The active reference, or null while nothing is active — the one seam every
+ * `references[activeReferenceId]` lookup below goes through. */
+const activeRef = computed(() => {
+  const id = store.activeReferenceId;
+  return id ? store.references[id] ?? null : null;
+});
+
 const overlayRoot = ref<HTMLElement>();
 
 /**
@@ -183,7 +190,7 @@ const handles = computed(() => {
   // Bands never reorder in the store (only their fields mutate via id-matched .map()),
   // so numbering by array position is stable even after a handle's frequency is dragged
   // past a neighbor's.
-  return store.graphicEq.bands.map((band, index) => {
+  return (activeRef.value?.graphicEq.bands ?? []).map((band, index) => {
     const { x, y } = dataToPixel(band.frequency, band.gain);
     return { band, x, y, number: index + 1 };
   });
@@ -194,7 +201,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function nyquist(): number {
-  return (store.ir?.sampleRate ?? store.sampleRates.A ?? 44100) / 2;
+  return (activeRef.value?.ir?.sampleRate ?? store.sampleRateA ?? 44100) / 2;
 }
 
 function handleTitle(band: GraphicEqBand): string {
@@ -271,7 +278,7 @@ const activeBandId = ref<string | null>(null);
 const popoverAnchor = ref<DOMRect | null>(null);
 
 const activeBand = computed<GraphicEqBand | null>(() =>
-  activeBandId.value ? store.graphicEq.bands.find((b) => b.id === activeBandId.value) ?? null : null,
+  activeBandId.value ? activeRef.value?.graphicEq.bands.find((b) => b.id === activeBandId.value) ?? null : null,
 );
 
 function openPopover(band: GraphicEqBand, anchorEl: HTMLElement): void {
