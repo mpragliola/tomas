@@ -12,6 +12,9 @@ export default defineConfig({
     timeout: 15_000,
   },
   fullyParallel: true,
+  // Capped locally: many concurrent Chromium instances (each with WebAudio/WaveSurfer)
+  // reliably crashed the renderer (STATUS_STACK_BUFFER_OVERRUN) on Windows under full parallelism.
+  workers: process.env.CI ? undefined : 2,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: 'list',
@@ -22,7 +25,21 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      testIgnore: /recording\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      // Fake mic (synthetic tone, no OS permission dialog) so RecordingPanel's
+      // getUserMedia flow is exercisable headlessly.
+      name: 'chromium-mic',
+      testMatch: /recording\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        permissions: ['microphone'],
+        launchOptions: {
+          args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+        },
+      },
     },
   ],
   webServer: {

@@ -61,7 +61,7 @@ test('multi-reference workflow: load, add, clone, download, remove, play', async
 
   // 6. Download all IRs
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download all IRs' }).click();
+  await page.getByRole('button', { name: 'Download all as ZIP' }).click();
   const download = await downloadPromise;
   expect(download).toBeTruthy();
 
@@ -70,8 +70,8 @@ test('multi-reference workflow: load, add, clone, download, remove, play', async
   await cloneTab.locator('.tab-close').click();
   await expect(tabs).toHaveCount(2);
 
-  // 8. Switch playback mode to "C · Reference" and play
-  await page.getByRole('button', { name: 'C · Reference' }).click();
+  // 8. Switch playback mode to "B" (reference) and play
+  await page.locator('.ab-btn', { hasText: 'B' }).click();
   const playButton = page.locator('button.btn-play');
   await playButton.click();
   await expect(playButton).toHaveClass(/playing/);
