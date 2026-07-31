@@ -5,7 +5,7 @@
       title="Wave 1 (A — your sound)"
       tooltip-text="Your source audio — the sound you want to reshape. Load a file or record live."
       @file-loaded="emit('file-loaded', { target: 'A', file: $event })"
-      @record="emit('record', { target: 'A' })"
+      @record="emit('record', 'A')"
       @stop-record="emit('stop-record')"
     />
 
