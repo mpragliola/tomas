@@ -16,8 +16,8 @@
     "feather-icons": "^4.29.2",
     "fflate": "^0.8.3",
     "fft.js": "^4.0.3",
+    "freqplot": "github:mpragliola/freqplot#d879270",
     "pinia": "^4.0.2",
-    "plotly.js": "^3.7.0",
     "vue": "^3.3.0",
     "wavesurfer.js": "^7.0.0"
   },
