@@ -21,11 +21,19 @@ test.describe('spectrum viewer', () => {
     await expect(eqToggle).toBeEnabled({ timeout: 15_000 });
     await eqToggle.click();
     await expect(eqToggle).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('.graphic-eq-overlay')).toBeVisible();
+    await expect
+      .poll(async () =>
+        page.evaluate(() => (window as any).__spectrum.curves.value.some((c: any) => c.id === 'graphicEQ'))
+      )
+      .toBe(true);
 
     await eqToggle.click();
     await expect(eqToggle).toHaveAttribute('aria-pressed', 'false');
-    await expect(page.locator('.graphic-eq-overlay')).toHaveCount(0);
+    await expect
+      .poll(async () =>
+        page.evaluate(() => (window as any).__spectrum.curves.value.some((c: any) => c.id === 'graphicEQ'))
+      )
+      .toBe(false);
   });
 
   test('expand/collapse spectrum persists across reload', async ({ page }) => {

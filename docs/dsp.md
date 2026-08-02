@@ -324,7 +324,7 @@ whatever is there**, including noise the gates did not catch.
 
 ---
 
-## 6. Graphic EQ overlay — [graphicEqResponse.ts](../src/services/dsp/graphicEqResponse.ts), [GraphicEqOverlay.vue](../src/components/GraphicEqOverlay.vue)
+## 6. Graphic EQ overlay — [graphicEqResponse.ts](../src/services/dsp/graphicEqResponse.ts), [useFreqPlotCurves.ts](../src/composables/useFreqPlotCurves.ts)
 
 A hand-editable 9-band graphic EQ, layered **on top of** the derived tone-match curve — not
 part of it. `deriveToneCurve` (§5) never sees it; it reads only the two spectra. The EQ exists
@@ -377,20 +377,23 @@ recomputes `curveDb + eqDb` directly on the curve's own frequency grid (skipping
 render entirely) so the displayed shape tracks the drag at full rate even though the actual
 FIR only updates every 120 ms.
 
-### 6.4 Handle interaction — [GraphicEqOverlay.vue](../src/components/GraphicEqOverlay.vue)
+### 6.4 Handle interaction — [freqplot](https://github.com/mpragliola/freqplot) (`eq` curve type)
 
-Handles are positioned in plot pixel space via Plotly's own `_fullLayout` axis `d2p`/`p2d`
-converters, repositioned on Plotly's `plotly_afterplot` event rather than only a
-`ResizeObserver` — the event fires once Plotly has actually finished redrawing, avoiding a
-race on window-resize or zoom.
+The band is rendered and interacted with entirely by the `freqplot` library's own canvas —
+no DOM handles, no custom pixel-space math against the host chart's internals. The bands
+themselves live in `store.references[id].graphicEq.bands`, mapped each render to freqplot's
+`EqBand[]` (`useFreqPlotCurves.ts`'s `toEqBand`/`toGraphicEqBandType`, the only translation
+needed: this app's `peaking` is freqplot's `peak`, every other `type` value matches).
+`Freqplot`'s `band-change` event reports edits back by array index (bands never reorder, so
+index-matching against the store's array is safe), which `onBandChange` turns into a
+`store.updateGraphicEqBand` call.
 
-- **Drag** (past a 4px threshold) sets `{frequency, gain, enabled: true}`, clamped to
-  `[20 Hz, Nyquist]` and the gain range.
-- **Click** without drag opens a popover for numeric entry of type/frequency/gain/Q.
-- **Wheel** over a handle adjusts **Q only**, multiplicatively, with an accelerating step
-  (5%→9% of the Q range per tick) up to `GRAPHIC_EQ_Q_RANGE[1] = 15`.
-- **Double-click** resets a band to its untouched default — bypassed, 0 dB, default Q,
-  `peaking`.
+- **Drag the handle** sets frequency/gain, clamped to `[minFreq, maxFreq]` and
+  `[minGain, maxGain]`.
+- **Drag the zone** around a handle (not the handle itself) adjusts **Q only**.
+- **Click a handle** selects it, revealing freqplot's own in-canvas type-switch and
+  bypass buttons — no separate popover.
+- **Double-click** resets a band to its untouched default.
 
 No inter-band interpolation or snapping: each band is an independent biquad, and the combined
 shape is the dB sum, not a curve fitted through the handle positions (§14).

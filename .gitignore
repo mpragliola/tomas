@@ -30,3 +30,6 @@ playwright/.cache
 .DS_Store
 Thumbs.db
 .worktrees/
+
+
+**/*.code-workspace

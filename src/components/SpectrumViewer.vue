@@ -36,13 +36,20 @@
 
     <!-- Container stays mounted so the ref is always valid; states overlay it -->
     <div class="plot-area">
-      <div ref="plotContainer" class="plot-container"></div>
-
-      <GraphicEqOverlay
-        v-if="activeRef?.graphicEq.enabled && activeRef?.toneCurve"
-        :plot-container="plotContainer"
-        :axis-range="plotAxisRange"
-      />
+      <div class="plot-container">
+        <Freqplot
+          :curves="curves"
+          :min-freq="minFreq"
+          :max-freq="maxFreq"
+          :min-value="minValue"
+          :max-value="maxValue"
+          :legend="true"
+          :cursor-readout="true"
+          :border-radius="0"
+          @band-change="onBandChange"
+          @visibility-change="onVisibilityChange"
+        />
+      </div>
 
       <Transition name="fade-rise">
         <div v-if="store.isAutoComputing" class="overlay loading-state">
@@ -61,14 +68,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue';
+import { computed, onMounted } from 'vue';
+import { Freqplot } from 'freqplot/vue';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { useLiveSpectrum } from '../composables/useLiveSpectrum';
-import { useSpectrumPlot } from '../composables/useSpectrumPlot';
+import { useFreqPlotCurves } from '../composables/useFreqPlotCurves';
 import { logger } from '../services/logging';
 import Icon from './Icon.vue';
 import TooltipIcon from './TooltipIcon.vue';
-import GraphicEqOverlay from './GraphicEqOverlay.vue';
 
 const store = useAnalysisStore();
 
@@ -100,49 +107,21 @@ const {
   averageDb: liveAverageDb,
 } = useLiveSpectrum();
 
-const { plotContainer, scheduleUpdate, handleLiveMagnitudesUpdate, plotAxisRange } = useSpectrumPlot(
+const { curves, minFreq, maxFreq, minValue, maxValue, onVisibilityChange, onBandChange } = useFreqPlotCurves(
   liveFrequencies,
   liveMagnitudesDb,
   liveAverageDb
 );
 
-async function resizePlot(): Promise<void> {
-  if (!plotContainer.value) return;
-  const Plotly = (window as any).Plotly;
-  if (Plotly) {
-    await Plotly.Plots.resize(plotContainer.value);
-  }
-}
-
 onMounted(() => {
   logger.info('SpectrumViewer', 'Mounted');
-  if (store.spectrumA || activeRef.value?.spectrum || activeRef.value?.ir || liveFrequencies.value) {
-    scheduleUpdate();
-  }
 });
 
-watch(
-  () => [store.spectrumA, activeRef.value?.spectrum, activeRef.value?.ir],
-  () => scheduleUpdate(),
-  { deep: true }
-);
-
-// Playback starting, stopping or switching source changes the trace list, so this one
-// needs the full rebuild — the frame-by-frame values do not.
-watch([liveFrequencies], () => scheduleUpdate());
-
-// Both curves come from the same analyser frame, so one restyle carries the pair — two
-// separate calls would redraw the plot twice for a single frame's worth of new data.
-watch(liveMagnitudesDb, handleLiveMagnitudesUpdate);
-
-// When the spectrum panel expands/collapses, tell Plotly to resize to the new dimensions
-watch(
-  () => props.isSpectrumExpanded,
-  async () => {
-    await scheduleUpdate();
-    resizePlot();
-  }
-);
+// Dev-only handle for e2e tests to read the plot's axis ranges and curve data — there's no
+// DOM to query for freqplot's canvas-drawn curves/bands, mirroring `window.__store` in main.ts.
+if (import.meta.env.DEV) {
+  (window as any).__spectrum = { curves, minFreq, maxFreq, minValue, maxValue };
+}
 </script>
 
 <style lang="scss" scoped>
@@ -305,10 +284,5 @@ $spinner-size: 24px;
   height: 100%;
   width: 100%;
   align-self: stretch;
-}
-
-:deep(.plotly) {
-  width: 100%;
-  height: 100%;
 }
 </style>
