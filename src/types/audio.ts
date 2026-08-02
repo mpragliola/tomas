@@ -99,9 +99,6 @@ export interface AudioAsset {
   buffer: Float32Array;
   /** The same take, deinterleaved. Analysis reads this; see `AudioBuffer.channels`. */
   channels: Float32Array[];
-  /** Decimated draw data for the waveform view — see computeWavePeaks. Selection/analysis
-   * math always reads `buffer` (full resolution), never this. */
-  wavePeaks: Float32Array;
   sampleRate: number;
   header: WavHeader | null;
   sourceName: string;

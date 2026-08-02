@@ -128,8 +128,6 @@ const nameTail = computed(() =>
 const isRecordingHere = computed(() => store.recordingTarget === 'A');
 const recordingElsewhere = computed(() => store.recordingTarget !== null && !isRecordingHere.value);
 
-// The waveform block must be visible before WaveSurfer measures the container,
-// otherwise it renders a zero-width canvas
 const showWaveform = computed(() => hasAudio.value && !loading.value);
 
 function clearSlot(): void {

@@ -1,62 +1,33 @@
 <template>
-  <!-- Stays mounted (v-show) so the container ref is always valid for WaveSurfer -->
+  <!-- Stays mounted (v-show) so the waver ref is always valid -->
   <div v-show="active" class="loaded-state">
-    <div
-      class="waveform-minimap-group"
-      :class="{ 'view-hidden': view !== 'wave' }"
-      :style="{ order: view === 'wave' ? 1 : 3 }"
-    >
-      <div
-        ref="container"
-        class="waveform-container"
-        @wheel="handleWheel"
-      >
-        <div
-          v-show="scrollBar.visible"
-          class="scroll-overlay"
-          :style="{ left: scrollBar.left + '%', width: scrollBar.width + '%' }"
-          @pointerdown="startScrollDrag"
-        ></div>
-      </div>
+    <Waver
+      ref="waverRef"
+      :height="130"
+      :theme="theme"
+      :view-mode="view"
+      show-zero-line
+      show-minimap
+      :show-load-button="false"
+      :show-record-button="false"
+      class="waveform-host"
+      @selectionchange="onSelectionChange"
+      @cursorchange="onCursorChange"
+    />
 
-      <!-- Plugin hosts: kept outside .waveform-container so the shadow-root scrollbar
-           lookup and the crosshair cursor rule keep matching only the waveform.
-           Hidden views collapse height only — width must stay measurable, or the
-           plugin renders into a zero-width canvas the next time it's shown. The active
-           view is reordered above the minimap, so the two views swap position instead
-           of the spectrogram always trailing it. -->
-      <div ref="minimapContainer" class="minimap-container"></div>
-    </div>
-    <div
-      ref="spectrogramContainer"
-      class="spectrogram-container"
-      :class="{ 'view-hidden': view !== 'spectrogram' }"
-      :style="{ order: view === 'spectrogram' ? 1 : 3 }"
-    ></div>
-
-    <div class="waveform-footer" style="order: 4">
+    <div class="waveform-footer">
       <span class="duration">{{ durationLabel }}</span>
       <span class="selection-info">{{ selectionLabel }}</span>
     </div>
 
-    <div class="waveform-tools" style="order: 5">
-      <input
-        type="range"
-        class="zoom-slider"
-        :min="ZOOM_MIN"
-        :max="ZOOM_MAX"
-        step="0.5"
-        :value="zoom"
-        @input="setZoom(Number(($event.target as HTMLInputElement).value))"
-        title="Zoom"
-      />
+    <div class="waveform-tools">
       <button
         type="button"
         class="tool-btn"
-        :title="view === 'wave' ? 'Show spectrogram' : 'Show waveform'"
-        @click.stop="view = view === 'wave' ? 'spectrogram' : 'wave'"
+        :title="view === 'waveform' ? 'Show spectrogram' : 'Show waveform'"
+        @click.stop="view = view === 'waveform' ? 'spectrogram' : 'waveform'"
       >
-        <Icon :name="view === 'wave' ? 'bar-chart-2' : 'activity'" size="14" />
+        <Icon :name="view === 'waveform' ? 'bar-chart-2' : 'activity'" size="14" />
       </button>
       <button
         type="button"
@@ -74,15 +45,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, toRef } from 'vue';
+import { computed, ref } from 'vue';
+import { Waver } from 'waver/vue';
+import type { ViewMode } from 'waver';
 import Icon from '../Icon.vue';
 import { useAnalysisStore } from '../../stores/analysisStore';
 import { useSpectrumScheduler } from '../../composables/useSpectrumScheduler';
-import { useWaveformSlot, ZOOM_MIN, ZOOM_MAX, type WaveformTarget } from '../../composables/useWaveformSlot';
+import { useWaveformSlot, type WaveformTarget, type WaverHandle } from '../../composables/useWaveformSlot';
 
 const props = defineProps<{
   target: WaveformTarget;
-  /** The block is laid out and can be measured — see useWaveformSlot. */
+  /** The block is laid out and can be measured. */
   active: boolean;
 }>();
 
@@ -94,11 +67,10 @@ const emit = defineEmits<{
 }>();
 
 const store = useAnalysisStore();
-const container = ref<HTMLElement>();
-const minimapContainer = ref<HTMLElement>();
-const spectrogramContainer = ref<HTMLElement>();
-/** Which of the two stacked views is on top — the other collapses to free up height. */
-const view = ref<'wave' | 'spectrogram'>('wave');
+const waverRef = ref<WaverHandle>();
+/** Which of waver's two stacked views is on top. */
+const view = ref<ViewMode>('waveform');
+
 // Passed as getters, not `props.target` itself: this component instance is reused across
 // reference tab switches (only the `target` prop's value changes), and a composable's
 // setup runs once — a raw value would freeze on whichever tab was active at first mount.
@@ -110,14 +82,15 @@ const spectrum = useSpectrumScheduler(() => props.target, {
   onSuccess: () => emit('status', '', 0),
 });
 
-const { zoom, scrollBar, repaint, setZoom, handleWheel, startScrollDrag, resetView } =
-  useWaveformSlot(() => props.target, container, {
-    active: toRef(props, 'active'),
-    minimapContainer,
-    spectrogramContainer,
+const { theme, resetView, onSelectionChange, onCursorChange } = useWaveformSlot(
+  () => props.target,
+  waverRef,
+  {
+    active: computed(() => props.active),
     onStatus: (message, durationMs) => emit('status', message, durationMs),
     onSelectionChange: spectrum.schedule,
-  });
+  },
+);
 
 /** Same seam useWaveformSlot uses internally — resolve buffer/rate/selection for
  * whichever target this instance is showing. */
@@ -151,7 +124,6 @@ const selectionLabel = computed(() => {
   const end = (selection.endSample / sampleRate).toFixed(2);
   return `${start}s – ${end}s`;
 });
-
 </script>
 
 <style lang="scss" scoped>
@@ -181,66 +153,10 @@ $icon-btn-size: 28px;
   flex: 1;
 }
 
-.waveform-minimap-group {
-  display: flex;
-  flex-direction: column;
+.waveform-host {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   overflow: hidden;
-}
-
-.waveform-container {
-  position: relative;
-  background-color: color-mix(in srgb, var(--color-accent) 2%, transparent);
-  overflow: hidden;
-
-  :deep(> div) { cursor: crosshair; }
-}
-
-/* Sits on top of the waveform instead of stealing height from it */
-.scroll-overlay {
-  position: absolute;
-  bottom: 3px;
-  height: 5px;
-  z-index: 10;
-  min-width: 16px;
-  border-radius: $radius-pill;
-  background-color: rgba(140, 140, 140, 0.45);
-  cursor: grab;
-  transition: background-color $transition-fast;
-
-  &:hover,
-  &:active { background-color: rgba(160, 160, 160, 0.8); }
-}
-
-/* The minimap strip collapses to nothing until its plugin fills it */
-.minimap-container {
-  position: relative;
-  overflow: hidden;
-
-  &:not(:empty) {
-    flex-shrink: 0;
-    border-top: 1px solid var(--color-border);
-  }
-}
-
-/* Same box model as .waveform-container — height swap on toggle doesn't jitter */
-.spectrogram-container {
-  position: relative;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-
-/* Inactive view: zero height but measurable width for the plugin */
-.waveform-minimap-group,
-.spectrogram-container {
-  &.view-hidden {
-    height: 0;
-    border: none;
-    margin: 0;
-    overflow: hidden;
-  }
 }
 
 .waveform-footer {
@@ -271,12 +187,6 @@ $icon-btn-size: 28px;
   gap: 6px;
 }
 
-.zoom-slider {
-  flex: 1;
-  min-width: 0;
-  height: 4px;
-}
-
 .tool-btn {
   @include icon-btn;
 
@@ -302,9 +212,5 @@ $icon-btn-size: 28px;
     color: var(--color-error);
     background-color: color-mix(in srgb, var(--color-error) 5%, transparent);
   }
-}
-
-:deep(.wavesurfer) {
-  border-radius: var(--radius-sm);
 }
 </style>

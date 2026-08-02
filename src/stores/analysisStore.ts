@@ -16,7 +16,6 @@ import type { GraphicEqBand, GraphicEqState } from '../types/graphicEq';
 import { createDefaultGraphicEqState } from '../types/graphicEq';
 import { logger } from '../services/logging';
 import { parseAudioFile } from '../services/audio/audioLoader';
-import { computeWavePeaks } from '../services/audio/waveformPeaks';
 import { computeAveragedFFT } from '../services/audio/fftProcessor';
 import { extractSpectrum } from '../services/dsp/spectrum';
 import { deriveToneCurve, renderToneMatchIR } from '../services/dsp/irDerivation';
@@ -67,9 +66,6 @@ export const useAnalysisStore = defineStore('analysis', () => {
   // Record<'A', T> wrapper around a single key bought nothing once B stopped being a
   // fixed second key next to it. ---
   const audioBufferA = ref(new Float32Array());
-  /** Decimated draw data for the waveform view — see computeWavePeaks. Selection/analysis
-   * math always reads audioBufferA (full resolution), never this. */
-  const wavePeakA = ref(new Float32Array());
   const channelBufferA = ref<Float32Array[]>([]);
   const sampleRateA = ref(44100);
   const audioHeaderA = ref<WavHeader | null>(null);
@@ -248,7 +244,6 @@ export const useAnalysisStore = defineStore('analysis', () => {
 
     const parsed: AudioBuffer = await parseAudioFile(file);
     audioBufferA.value = parsed.audioData;
-    wavePeakA.value = computeWavePeaks(parsed.audioData);
     channelBufferA.value = parsed.channels;
     audioHeaderA.value = parsed.header;
     sampleRateA.value = parsed.header.sampleRate;
@@ -314,7 +309,6 @@ export const useAnalysisStore = defineStore('analysis', () => {
     const sr = 44100; // Recorder uses 44100 Hz
 
     audioBufferA.value = audioData;
-    wavePeakA.value = computeWavePeaks(audioData);
     // The recorder picks a single input channel rather than summing, so a take is already
     // mono and there is nothing to deinterleave.
     channelBufferA.value = [audioData];
@@ -357,7 +351,6 @@ export const useAnalysisStore = defineStore('analysis', () => {
     audioAssets.value[assetId] = {
       id: assetId,
       buffer: audioData,
-      wavePeaks: computeWavePeaks(audioData),
       channels: [audioData],
       sampleRate: sr,
       header,
@@ -396,7 +389,6 @@ export const useAnalysisStore = defineStore('analysis', () => {
     stopPlayback();
 
     audioBufferA.value = new Float32Array();
-    wavePeakA.value = new Float32Array();
     channelBufferA.value = [];
     audioHeaderA.value = null;
     sampleRateA.value = 44100;
@@ -506,7 +498,6 @@ export const useAnalysisStore = defineStore('analysis', () => {
     audioAssets.value[assetId] = {
       id: assetId,
       buffer: parsed.audioData,
-      wavePeaks: computeWavePeaks(parsed.audioData),
       channels: parsed.channels,
       sampleRate: parsed.header.sampleRate,
       header: parsed.header,
@@ -1417,7 +1408,6 @@ export const useAnalysisStore = defineStore('analysis', () => {
   return {
     // A
     audioBufferA,
-    wavePeakA,
     channelBufferA,
     sampleRateA,
     audioHeaderA,
