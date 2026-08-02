@@ -1,9 +1,9 @@
 <template>
   <!-- Stays mounted (v-show) so the waver ref is always valid -->
-  <div v-show="active" class="loaded-state">
+  <div v-show="active" class="loaded-state" @pointerdown="dragging = true">
     <Waver
       ref="waverRef"
-      :height="130"
+      :height="96"
       :theme="theme"
       :view-mode="view"
       show-zero-line
@@ -13,6 +13,7 @@
       class="waveform-host"
       @selectionchange="onSelectionChange"
       @cursorchange="onCursorChange"
+      @zoomchange="onZoomChange"
     />
 
     <div class="waveform-footer">
@@ -21,6 +22,16 @@
     </div>
 
     <div class="waveform-tools">
+      <input
+        type="range"
+        class="zoom-slider"
+        :min="ZOOM_MIN"
+        :max="ZOOM_MAX"
+        step="0.5"
+        :value="zoom"
+        @input="setZoom(Number(($event.target as HTMLInputElement).value))"
+        title="Zoom"
+      />
       <button
         type="button"
         class="tool-btn"
@@ -45,13 +56,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Waver } from 'waver/vue';
 import type { ViewMode } from 'waver';
 import Icon from '../Icon.vue';
 import { useAnalysisStore } from '../../stores/analysisStore';
 import { useSpectrumScheduler } from '../../composables/useSpectrumScheduler';
-import { useWaveformSlot, type WaveformTarget, type WaverHandle } from '../../composables/useWaveformSlot';
+import {
+  useWaveformSlot,
+  ZOOM_MIN,
+  ZOOM_MAX,
+  type WaveformTarget,
+  type WaverHandle,
+} from '../../composables/useWaveformSlot';
 
 const props = defineProps<{
   target: WaveformTarget;
@@ -71,18 +88,31 @@ const waverRef = ref<WaverHandle>();
 /** Which of waver's two stacked views is on top. */
 const view = ref<ViewMode>('waveform');
 
+// A mid-drag selection is transiently too short every time it starts — surfacing that as
+// a warning would flash one on screen for the whole drag. Only report refusals once the
+// user has actually settled on a selection.
+const dragging = ref(false);
+function stopDragging(): void {
+  dragging.value = false;
+}
+onMounted(() => window.addEventListener('pointerup', stopDragging));
+onUnmounted(() => window.removeEventListener('pointerup', stopDragging));
+
 // Passed as getters, not `props.target` itself: this component instance is reused across
 // reference tab switches (only the `target` prop's value changes), and a composable's
 // setup runs once — a raw value would freeze on whichever tab was active at first mount.
 const spectrum = useSpectrumScheduler(() => props.target, {
   // A selection the FFT refuses is otherwise indistinguishable from a selection
-  // that worked — the region is drawn either way and nothing downstream moves
-  onError: (message) => emit('status', message, 3000),
+  // that worked — the region is drawn either way and nothing downstream moves.
+  // Suppressed mid-drag: see `dragging` above.
+  onError: (message) => {
+    if (!dragging.value) emit('status', message, 3000);
+  },
   // Empty clears — a refusal must not outlive the selection that fixed it
   onSuccess: () => emit('status', '', 0),
 });
 
-const { theme, resetView, onSelectionChange, onCursorChange } = useWaveformSlot(
+const { theme, zoom, setZoom, resetView, onSelectionChange, onCursorChange, onZoomChange } = useWaveformSlot(
   () => props.target,
   waverRef,
   {
@@ -185,6 +215,12 @@ $icon-btn-size: 28px;
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.zoom-slider {
+  flex: 1;
+  min-width: 0;
+  height: 4px;
 }
 
 .tool-btn {

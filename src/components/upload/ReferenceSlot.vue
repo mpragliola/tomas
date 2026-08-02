@@ -285,14 +285,15 @@ $spinner-size: 20px;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin: -4px 0 8px;
+  min-height: 28px;
+  margin: 0 0 8px;
 }
 
 /* Middle elision: only the head shrinks so the file extension stays readable */
 .source-name {
   display: flex;
   min-width: 0;
-  font-size: var(--font-size-label);
+  font-size: var(--font-size-micro);
   color: var(--color-accent);
   white-space: nowrap;
 }

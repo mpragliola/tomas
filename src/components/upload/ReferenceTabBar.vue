@@ -68,9 +68,10 @@ const maxTooltip = computed(
 
 .tab-bar {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 4px;
-  margin-bottom: 6px;
+  min-height: 28px;
+  margin: 0 0 8px;
 }
 
 .tabs {
@@ -85,12 +86,14 @@ const maxTooltip = computed(
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 6px;
+  height: 24px;
+  padding: 0 6px;
+  box-sizing: border-box;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background-color: var(--color-bg);
   color: var(--color-text-secondary);
-  font-size: var(--font-size-label);
+  font-size: var(--font-size-micro);
   cursor: pointer;
   white-space: nowrap;
   transition: all $transition-fast;
@@ -149,6 +152,8 @@ const maxTooltip = computed(
   align-items: center;
   justify-content: center;
   width: 26px;
+  height: 24px;
+  box-sizing: border-box;
   flex-shrink: 0;
   border: 1px dashed var(--color-border);
   border-radius: var(--radius-sm);

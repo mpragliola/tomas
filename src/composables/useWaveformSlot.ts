@@ -1,8 +1,11 @@
 import { computed, nextTick, onUnmounted, ref, watch, type Ref } from 'vue';
-import { darkTheme, type WaverTheme } from 'waver';
+import { darkTheme, fullZoomSamplesPerPixel, type WaverTheme } from 'waver';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { logger } from '../services/logging';
 import { MIN_ANALYSIS_SECONDS } from '../services/dsp/defaults';
+
+export const ZOOM_MIN = 1;
+export const ZOOM_MAX = 40;
 
 /**
  * Floor only — a selection may run to the end of the file. Below this the Welch average is
@@ -63,7 +66,9 @@ export interface WaverHandle {
   getSelection: () => { startSample: number; endSample: number } | null;
   setCursorPosition: (sample: number, emitEvent?: boolean) => void;
   getCursorPosition: () => number;
+  setZoom: (zoom: { samplesPerPixel?: number; offsetSample?: number }, animate?: boolean) => void;
   zoomToFull: () => void;
+  element: () => { clientWidth: number } | null;
 }
 
 export interface WaveformSlotOptions {
@@ -290,6 +295,46 @@ export function useWaveformSlot(getTarget: () => WaveformTarget, waver: Ref<Wave
     options.onSelectionChange?.();
   }
 
+  function clampZoom(level: number): number {
+    return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, level));
+  }
+
+  /** Recomputed on demand from the live buffer length and rendered width, rather than
+   * cached at load time — the container can resize (sidebar toggle, window resize)
+   * between a load and a zoom, and a stale baseline would throw the slider's level off. */
+  function fitSamplesPerPixel(): number | null {
+    const width = waver.value?.element()?.clientWidth ?? 0;
+    const total = resolve().buffer.length;
+    if (!width || !total) return null;
+    return fullZoomSamplesPerPixel(total, width);
+  }
+
+  const zoom = ref(ZOOM_MIN);
+
+  /** zoom 1 = whole file fits the component; higher = fewer samples per pixel (zoomed in). */
+  function setZoom(level: number): void {
+    const el = waver.value;
+    const fit = fitSamplesPerPixel();
+    if (!el || fit === null) return;
+
+    const clamped = clampZoom(level);
+    if (clamped <= ZOOM_MIN) {
+      el.zoomToFull();
+      return;
+    }
+    // animate: false — a dragged range input fires many updates in quick succession, and
+    // queuing a fresh eased transition on every one of them makes the slider lag behind.
+    el.setZoom({ samplesPerPixel: fit / clamped }, false);
+  }
+
+  /** Mirrors waver's own zoom back onto the slider — wheel zoom, minimap drag, and
+   * zoomToFull() all change zoom without going through setZoom() above. */
+  function onZoomChange(zoomState: { samplesPerPixel: number }): void {
+    const fit = fitSamplesPerPixel();
+    if (fit === null || !zoomState.samplesPerPixel) return;
+    zoom.value = clampZoom(fit / zoomState.samplesPerPixel);
+  }
+
   function resetView(): void {
     waver.value?.zoomToFull();
     clearSelection();
@@ -305,8 +350,11 @@ export function useWaveformSlot(getTarget: () => WaveformTarget, waver: Ref<Wave
 
   return {
     theme,
+    zoom,
+    setZoom,
     resetView,
     onSelectionChange,
     onCursorChange,
+    onZoomChange,
   };
 }

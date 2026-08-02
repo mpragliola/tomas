@@ -162,8 +162,10 @@ $spinner-size: 20px;
 .source-name {
   display: flex;
   min-width: 0;
-  margin: -4px 0 8px;
-  font-size: var(--font-size-label);
+  align-items: center;
+  min-height: 28px;
+  margin: 0 0 8px;
+  font-size: var(--font-size-micro);
   color: var(--color-accent);
   white-space: nowrap;
 }
