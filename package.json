@@ -19,7 +19,7 @@
     "freqplot": "github:mpragliola/freqplot#d879270",
     "pinia": "^4.0.2",
     "vue": "^3.3.0",
-    "wavesurfer.js": "^7.0.0"
+    "waver": "github:mpragliola/waver#4b85a32"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.0",
@@ -27,7 +27,7 @@
     "@vitejs/plugin-vue": "^6.0.8",
     "@vitest/ui": "^4.1.10",
     "sass": "^1.102.0",
-    "typescript": "^7.0.2",
+    "typescript": "^5.9.3",
     "vite": "^8.1.5",
     "vitest": "^4.1.10",
     "vue-tsc": "^3.3.8"

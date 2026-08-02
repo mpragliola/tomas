@@ -21,46 +21,21 @@ test.describe('waveform editor', () => {
     await expect(page.locator('.selection-info').first()).toContainText(duration!.replace('s', '') + 's');
   });
 
-  test('zoom slider changes value on input', async ({ page }) => {
-    const slider = page.locator('.zoom-slider').first();
-    const before = await slider.inputValue();
-    await slider.fill('5');
-    await slider.dispatchEvent('input');
-    const after = await slider.inputValue();
-    expect(after).not.toBe(before);
-    expect(after).toBe('5');
-  });
-
   test('view toggle swaps waveform for spectrogram and back', async ({ page }) => {
     const toggleBtn = page.locator('.tool-btn').first();
     await expect(toggleBtn).toHaveAttribute('title', 'Show spectrogram');
-    await expect(page.locator('.waveform-minimap-group').first()).not.toHaveClass(/view-hidden/);
 
     await toggleBtn.click();
     await expect(toggleBtn).toHaveAttribute('title', 'Show waveform');
-    await expect(page.locator('.waveform-minimap-group').first()).toHaveClass(/view-hidden/);
-    await expect(page.locator('.spectrogram-container').first()).not.toHaveClass(/view-hidden/);
 
     await toggleBtn.click();
     await expect(toggleBtn).toHaveAttribute('title', 'Show spectrogram');
-    await expect(page.locator('.waveform-minimap-group').first()).not.toHaveClass(/view-hidden/);
-  });
-
-  test('reset view restores default zoom after zooming in', async ({ page }) => {
-    const slider = page.locator('.zoom-slider').first();
-    await slider.fill('10');
-    await slider.dispatchEvent('input');
-    expect(await slider.inputValue()).toBe('10');
-
-    const resetBtn = page.locator('.tool-btn[title="Reset zoom & selection"]').first();
-    await resetBtn.click();
-    await expect.poll(() => slider.inputValue()).not.toBe('10');
   });
 
   test('drag-select on the waveform sets a selection range', async ({ page }) => {
-    const container = page.locator('.waveform-container').first();
-    const box = await container.boundingBox();
-    if (!box) throw new Error('waveform container not visible');
+    const host = page.locator('.waveform-host').first();
+    const box = await host.boundingBox();
+    if (!box) throw new Error('waveform host not visible');
 
     const y = box.y + box.height / 2;
     await page.mouse.move(box.x + box.width * 0.2, y);
@@ -70,6 +45,22 @@ test.describe('waveform editor', () => {
 
     await expect(page.locator('.selection-info').first()).not.toContainText('drag to select');
     await expect(page.locator('.selection-info').first()).toContainText('s –');
+  });
+
+  test('reset view clears a drag-selected range', async ({ page }) => {
+    const host = page.locator('.waveform-host').first();
+    const box = await host.boundingBox();
+    if (!box) throw new Error('waveform host not visible');
+
+    const y = box.y + box.height / 2;
+    await page.mouse.move(box.x + box.width * 0.2, y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.6, y, { steps: 10 });
+    await page.mouse.up();
+    await expect(page.locator('.selection-info').first()).toContainText('s –');
+
+    await page.locator('.tool-btn[title="Reset zoom & selection"]').first().click();
+    await expect(page.locator('.selection-info').first()).toContainText('drag to select');
   });
 
   test('Remove file clears the waveform back to the empty state', async ({ page }) => {

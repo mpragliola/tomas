@@ -16,7 +16,7 @@ export default defineConfig({
     outDir: 'dist',
   },
   optimizeDeps: {
-    include: ['fft.js', 'plotly.js', 'wavesurfer.js'],
+    include: ['fft.js', 'plotly.js'],
   },
   resolve: {
     alias: {
