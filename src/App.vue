@@ -284,7 +284,7 @@ function onIRDerived(e: any): void {
 .panel-waves {
   flex-shrink: 0;
   padding: 12px;
-  max-height: 45%;
+  overflow-y: visible;
 }
 
 .panel-input {
