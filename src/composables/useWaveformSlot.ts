@@ -249,6 +249,13 @@ export function useWaveformSlot(getTarget: () => WaveformTarget, waver: Ref<Wave
   /**
    * Redraw the selection from the store rather than whatever waver still has on screen —
    * after a target swap the store's selection is already the new audio's.
+   *
+   * A fresh load's selection defaults to the whole clip (see analysisStore) — drawn as an
+   * actual waver selection, that would cover the entire body, and waver treats a drag
+   * starting inside a selection's body as "move it", not "start a new one". A full-clip
+   * selection can't move (already clamped to the bounds), so every drag would look like a
+   * no-op. Left un-drawn instead: the footer label still reads it straight from the store,
+   * but waver sees empty space and a drag correctly starts a new selection.
    */
   function restoreSelection(): void {
     const el = waver.value;
@@ -256,8 +263,9 @@ export function useWaveformSlot(getTarget: () => WaveformTarget, waver: Ref<Wave
 
     const resolved = resolve();
     const selection = resolved.selection;
+    const isFullClip = selection && selection.startSample <= 0 && selection.endSample >= resolved.buffer.length;
     restoring = true;
-    if (!selection || selection.endSample <= selection.startSample) {
+    if (!selection || selection.endSample <= selection.startSample || isFullClip) {
       el.setSelection(null);
     } else {
       el.setSelection({ startSample: selection.startSample, endSample: selection.endSample });
