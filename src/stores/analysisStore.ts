@@ -3,7 +3,6 @@ import { ref, shallowRef, watch } from 'vue';
 import type { FrequencySpectrum, FFTConfig } from '../types/spectrum';
 import type { ImpulseResponse, ToneCurve } from '../types/ir';
 import type {
-  RecorderConfig,
   AudioBuffer,
   RecordTarget,
   PlaybackMode,
@@ -27,7 +26,6 @@ import {
   LIVE_ANALYSER_SMOOTHING,
   MIN_ANALYSIS_SECONDS,
 } from '../services/dsp/defaults';
-import { AudioRecorder } from '../services/audio/recorder';
 import { measureHeadroomTrim } from '../services/audio/headroom';
 
 /** Up to 8 reference tabs can be open at once — see `let-s-plan-a-complex-cached-turtle.md`. */
@@ -88,7 +86,6 @@ export const useAnalysisStore = defineStore('analysis', () => {
   const fftConfig = ref<FFTConfig>({ ...DEFAULT_FFT_CONFIG });
   const playbackState = ref<'idle' | 'playing' | 'paused'>('idle');
   const isAutoComputing = ref(false);
-  const recorder = new AudioRecorder();
   /** Which take the live recording is going into, null when idle — drives the in-slot Stop
    * button and disables every other Record button while it's non-null. 'A', or a specific
    * reference tab (any tab, empty or already filled, can be re-recorded into). */
@@ -282,38 +279,13 @@ export const useAnalysisStore = defineStore('analysis', () => {
     }
   }
 
-  async function recordAudio(config: RecorderConfig, target: RecordTarget = 'A'): Promise<void> {
-    logger.info('analysisStore', 'Starting recording', {
-      target: target === 'A' ? 'A' : target.referenceId,
-    });
-    await recorder.start(config);
-    recordingTarget.value = target;
-  }
-
-  async function stopRecording(): Promise<void> {
-    const target = recordingTarget.value;
-    logger.info('analysisStore', 'Stopping recording', {
-      target: target === 'A' || target === null ? target : target.referenceId,
-    });
-    recordingTarget.value = null;
-    const audioData = await recorder.stop();
-
-    if (target === null || target === 'A') {
-      await finishRecordingIntoA(audioData);
-      return;
-    }
-    await finishRecordingIntoReference(target.referenceId, audioData);
-  }
-
-  async function finishRecordingIntoA(audioData: Float32Array): Promise<void> {
-    const sr = 44100; // Recorder uses 44100 Hz
-
+  async function finishRecordingIntoA(audioData: Float32Array, sampleRate: number): Promise<void> {
     audioBufferA.value = audioData;
     // The recorder picks a single input channel rather than summing, so a take is already
     // mono and there is nothing to deinterleave.
     channelBufferA.value = [audioData];
-    audioHeaderA.value = { sampleRate: sr, channels: 1, bitDepth: 32, duration: audioData.length / sr };
-    sampleRateA.value = sr;
+    audioHeaderA.value = { sampleRate, channels: 1, bitDepth: 32, duration: audioData.length / sampleRate };
+    sampleRateA.value = sampleRate;
     sourceNameA.value = 'Live take';
 
     selectionA.value = {
@@ -324,7 +296,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
 
     logger.info('analysisStore', 'Recording saved', {
       samples: audioData.length,
-      sampleRate: sr,
+      sampleRate,
     });
 
     await autoComputeSpectrumA();
@@ -335,7 +307,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
    * the recorder still has to be stopped cleanly (done by the caller, `stopRecording`,
    * before this runs), but there is no tab left to write the take into, so it's dropped.
    */
-  async function finishRecordingIntoReference(referenceId: string, audioData: Float32Array): Promise<void> {
+  async function finishRecordingIntoReference(referenceId: string, audioData: Float32Array, sampleRate: number): Promise<void> {
     const ref = references.value[referenceId];
     if (!ref) {
       logger.warn('analysisStore', 'Recording target reference no longer exists, discarding take', {
@@ -344,15 +316,14 @@ export const useAnalysisStore = defineStore('analysis', () => {
       return;
     }
 
-    const sr = 44100; // Recorder uses 44100 Hz
-    const header: WavHeader = { sampleRate: sr, channels: 1, bitDepth: 32, duration: audioData.length / sr };
+    const header: WavHeader = { sampleRate, channels: 1, bitDepth: 32, duration: audioData.length / sampleRate };
     const assetId = generateId('asset');
     const label = disambiguateLabel('Live take');
     audioAssets.value[assetId] = {
       id: assetId,
       buffer: audioData,
       channels: [audioData],
-      sampleRate: sr,
+      sampleRate,
       header,
       sourceName: label,
     };
@@ -1430,12 +1401,11 @@ export const useAnalysisStore = defineStore('analysis', () => {
     analysers,
     isAutoComputing,
     lastError,
-    recorder,
     recordingTarget,
     // Actions
     loadFile,
-    recordAudio,
-    stopRecording,
+    finishRecordingIntoA,
+    finishRecordingIntoReference,
     clearFile,
     updateSelectionA,
     computeSpectrumA,

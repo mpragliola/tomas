@@ -47,43 +47,6 @@ export interface AudioBuffer {
   channels: Float32Array[];
 }
 
-export interface RecorderConfig {
-  sampleRate: 44100 | 48000;
-  maxDuration: number;
-  /**
-   * Mono only. Everything downstream — FFT, IR derivation, the waveform peaks — is
-   * single-channel, and a stereo take would have to be collapsed anyway; doing it here
-   * keeps the collapse explicit instead of leaving it to a node's default mixing.
-   */
-  channelCount: 1;
-  /**
-   * Which channel of a multi-channel input to keep, 0-based. Picked, not summed: a mic on
-   * one input of a stereo interface is the normal case, and summing it with the silent
-   * other input costs 6 dB.
-   */
-  channelIndex: number;
-  autoThreshold: number;
-  /** When false (default) recording runs until stopped, ignoring autoThreshold. */
-  autoTrigger?: boolean;
-  deviceId?: string;
-}
-
-export interface RecorderState {
-  isRecording: boolean;
-  /**
-   * Auto-trigger is on and the take is still waiting for the signal to cross the
-   * threshold — the stream is open and metering, but nothing is being kept yet.
-   */
-  isArmed: boolean;
-  isPaused: boolean;
-  recordedDuration: number;
-  level: number;
-  /** Channels the device actually handed over; only the picked one is kept. */
-  inputChannels: number;
-  /** The channel being kept, 0-based — the requested one unless the device has fewer. */
-  channelIndex: number;
-}
-
 /**
  * A decoded reference file, kept independent of any tab that plays it back.
  *
