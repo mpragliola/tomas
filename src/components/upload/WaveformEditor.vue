@@ -8,8 +8,8 @@
       :view-mode="view"
       show-zero-line
       show-minimap
-      :show-load-button="false"
-      :show-record-button="false"
+      load-button="hidden"
+      record-button="enabled"
       class="waveform-host"
       @selectionchange="onSelectionChange"
       @cursorchange="onCursorChange"
