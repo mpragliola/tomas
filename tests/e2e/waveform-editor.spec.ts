@@ -9,7 +9,9 @@ const PINK_NOISE = path.join(FIXTURES, 'pink-noise.wav');
 test.describe('waveform editor', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.locator('input[type="file"]').nth(0).setInputFiles(PINK_NOISE);
+    // File loading now goes through waver's own built-in Load button (rendered in its
+    // shadow DOM) — Playwright locators pierce open shadow roots automatically.
+    await page.locator('wave-r').first().locator('input.waver-file-input').setInputFiles(PINK_NOISE);
     await expect(page.locator('.source-name').first()).toBeVisible();
   });
 
@@ -66,13 +68,11 @@ test.describe('waveform editor', () => {
   test('Remove file clears the waveform back to the empty state', async ({ page }) => {
     await page.locator('.cancel-btn').first().click();
     // WaveformEditor's host (waver + its own empty-overlay) stays visible/mounted after a
-    // clear — only its audio content resets — so waver's own Load/Record buttons stay
-    // reachable for a next take. `.loaded-state` no longer goes away; Tomas's own Load
-    // trigger (rendered below the waveform host, not overlaid on top of it — see
-    // WaveformEditor.vue) reappearing is the actual "back to empty" signal now, scoped
-    // to Wave 1's own upload area since the reference slot's auto-seeded empty tab
-    // shows the identical button.
-    const waveOneLoadBtn = page.locator('.upload-area').first().locator('.load-trigger-btn');
+    // clear — only its audio content resets — so waver's own Load/Record buttons
+    // reappearing (its empty-overlay) is the "back to empty" signal now, scoped to Wave
+    // 1's own <wave-r> since the reference slot's auto-seeded empty tab shows the
+    // identical button.
+    const waveOneLoadBtn = page.locator('wave-r').first().locator('[aria-label="Load File"]');
     await expect(waveOneLoadBtn).toBeVisible();
   });
 });

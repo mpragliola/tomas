@@ -13,14 +13,14 @@ test.describe('recording via waver\'s native Record button', () => {
     const waves = page.locator('wave-r');
     await expect(waves).toHaveCount(2); // Wave 1 + reference
 
-    const waveOneRecord = waves.nth(0).locator('.waver-action-btn--record');
+    const waveOneRecord = waves.nth(0).locator('[aria-label="Record"]');
     await waveOneRecord.click();
 
     const waveOneStop = waves.nth(0).locator('.waver-action-btn--stop');
     await expect(waveOneStop).toBeVisible();
 
     // The reference slot's Record button must be disabled while Wave 1 is recording
-    const referenceRecord = waves.nth(1).locator('.waver-action-btn--record');
+    const referenceRecord = waves.nth(1).locator('[aria-label="Record"]');
     await expect(referenceRecord).toBeDisabled();
 
     await page.waitForTimeout(1500); // let the fake device produce a real take
@@ -34,13 +34,13 @@ test.describe('recording via waver\'s native Record button', () => {
     await page.goto('/');
     const waves = page.locator('wave-r');
 
-    const referenceRecord = waves.nth(1).locator('.waver-action-btn--record');
+    const referenceRecord = waves.nth(1).locator('[aria-label="Record"]');
     await referenceRecord.click();
 
     const referenceStop = waves.nth(1).locator('.waver-action-btn--stop');
     await expect(referenceStop).toBeVisible();
 
-    const waveOneRecord = waves.nth(0).locator('.waver-action-btn--record');
+    const waveOneRecord = waves.nth(0).locator('[aria-label="Record"]');
     await expect(waveOneRecord).toBeDisabled();
 
     await page.waitForTimeout(1500);
@@ -54,7 +54,7 @@ test.describe('recording via waver\'s native Record button', () => {
     await expect(dropdowns).toHaveCount(2); // device + channel
 
     const waves = page.locator('wave-r');
-    await waves.nth(0).locator('.waver-action-btn--record').click();
+    await waves.nth(0).locator('[aria-label="Record"]').click();
     await expect(waves.nth(0).locator('.waver-action-btn--stop')).toBeVisible();
 
     // Unlike the old panel, the picker is not disabled by an in-progress recording.

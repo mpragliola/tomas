@@ -62,6 +62,7 @@ function getWaverTheme(colorKey: ColorKey): Partial<WaverTheme> {
 
 export interface WaverHandle {
   loadSamples: (samples: Float32Array, sampleRate: number) => void;
+  loadAudioBuffer: (buffer: AudioBuffer, context: AudioContext) => void;
   setSelection: (selection: { startSample: number; endSample: number } | null) => void;
   getSelection: () => { startSample: number; endSample: number } | null;
   setCursorPosition: (sample: number, emitEvent?: boolean) => void;
@@ -70,8 +71,10 @@ export interface WaverHandle {
   zoomToFull: () => void;
   element: () => { clientWidth: number } | null;
   getSamples: () => Float32Array;
+  getChannels: () => Float32Array[];
   getSampleRate: () => number;
   isRecording: () => boolean;
+  isMonitoring: () => boolean;
   reset: () => void;
 }
 
@@ -115,6 +118,7 @@ export function useWaveformSlot(getTarget: () => WaveformTarget, waver: Ref<Wave
       return {
         colorKey: 'A' as ColorKey,
         buffer: store.audioBufferA,
+        channels: store.channelBufferA,
         sampleRate: store.sampleRateA,
         playhead: store.playheadA,
         selection: store.selectionA,
@@ -133,6 +137,7 @@ export function useWaveformSlot(getTarget: () => WaveformTarget, waver: Ref<Wave
     return {
       colorKey: 'reference' as ColorKey,
       buffer: asset?.buffer ?? new Float32Array(),
+      channels: asset?.channels ?? [],
       sampleRate: asset?.sampleRate ?? 44100,
       playhead: ref?.playhead ?? null,
       selection: ref?.selection ?? null,
@@ -195,7 +200,19 @@ export function useWaveformSlot(getTarget: () => WaveformTarget, waver: Ref<Wave
     if (audioData.length === 0) return;
 
     try {
-      el.loadSamples(audioData, resolved.sampleRate);
+      if (resolved.channels.length > 1) {
+        // Stereo/multichannel source: hand waver a real AudioBuffer with every channel so
+        // it renders stacked per-channel lanes. Analysis still reads `resolved.buffer`
+        // (the single analysis channel resolved upstream), unaffected by this. An
+        // OfflineAudioContext is enough to construct the buffer — nothing here plays
+        // audio or touches a device, so there is no reason to open a live AudioContext.
+        const offlineCtx = new OfflineAudioContext(resolved.channels.length, audioData.length, resolved.sampleRate);
+        const audioBuffer = offlineCtx.createBuffer(resolved.channels.length, audioData.length, resolved.sampleRate);
+        resolved.channels.forEach((channel, i) => audioBuffer.copyToChannel(channel, i));
+        el.loadAudioBuffer(audioBuffer, offlineCtx as unknown as AudioContext);
+      } else {
+        el.loadSamples(audioData, resolved.sampleRate);
+      }
       el.zoomToFull();
       syncCursor();
       restoreSelection();
@@ -203,6 +220,7 @@ export function useWaveformSlot(getTarget: () => WaveformTarget, waver: Ref<Wave
       logger.info('WaveformSlot', `Waveform ${currentLabel()} loaded`, {
         samples: audioData.length,
         sampleRate: resolved.sampleRate,
+        channels: resolved.channels.length || 1,
       });
     } catch (error) {
       logger.error('WaveformSlot', `Failed to load waveform ${currentLabel()}`, { error: String(error) });

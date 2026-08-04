@@ -354,6 +354,87 @@ export const useAnalysisStore = defineStore('analysis', () => {
     }
   }
 
+  /** Averages deinterleaved channels down to mono — same formula audioDecoder.ts/wavParser.ts
+   * use for file-parsed audio, applied here to whatever waver's own Load button decoded. */
+  function mixToMono(channels: Float32Array[]): Float32Array {
+    if (channels.length <= 1) return channels[0] ?? new Float32Array();
+    const mixed = new Float32Array(channels[0].length);
+    for (const channel of channels) {
+      for (let i = 0; i < mixed.length; i++) mixed[i] += channel[i] / channels.length;
+    }
+    return mixed;
+  }
+
+  /**
+   * Called from WaveformEditor's `@loadsuccess` on waver's own built-in Load button —
+   * `channels` is waver's `getChannels()` (empty for a mono source; use `samples` then).
+   * Mirrors `finishRecordingIntoA` but keeps the picked file's name and real channel data
+   * instead of collapsing to a synthetic mono "take".
+   */
+  async function finishLoadIntoA(fileName: string, samples: Float32Array, channels: Float32Array[], sampleRate: number): Promise<void> {
+    const channelBuffer = channels.length > 0 ? channels : [samples];
+    audioBufferA.value = mixToMono(channelBuffer);
+    channelBufferA.value = channelBuffer;
+    audioHeaderA.value = { sampleRate, channels: channelBuffer.length, bitDepth: 32, duration: samples.length / sampleRate };
+    sampleRateA.value = sampleRate;
+    sourceNameA.value = fileName;
+
+    selectionA.value = {
+      startSample: 0,
+      endSample: samples.length,
+      duration: audioHeaderA.value.duration * 1000,
+    };
+
+    logger.info('analysisStore', 'File A loaded via waver Load button', {
+      samples: samples.length,
+      sampleRate,
+      channels: channelBuffer.length,
+    });
+
+    await autoComputeSpectrumA();
+  }
+
+  /** Same as `finishLoadIntoA`, into a reference tab. Mirrors `finishRecordingIntoReference`. */
+  async function finishLoadIntoReference(referenceId: string, fileName: string, samples: Float32Array, channels: Float32Array[], sampleRate: number): Promise<void> {
+    const ref = references.value[referenceId];
+    if (!ref) {
+      logger.warn('analysisStore', 'Load target reference no longer exists, discarding file', { referenceId });
+      return;
+    }
+
+    const channelBuffer = channels.length > 0 ? channels : [samples];
+    const header: WavHeader = { sampleRate, channels: channelBuffer.length, bitDepth: 32, duration: samples.length / sampleRate };
+    const assetId = generateId('asset');
+    const label = disambiguateLabel(fileName);
+    audioAssets.value[assetId] = {
+      id: assetId,
+      buffer: mixToMono(channelBuffer),
+      channels: channelBuffer,
+      sampleRate,
+      header,
+      sourceName: label,
+    };
+
+    ref.assetId = assetId;
+    ref.selection = { startSample: 0, endSample: samples.length, duration: header.duration * 1000 };
+    ref.label = label;
+    ref.stale = true;
+
+    logger.info('analysisStore', 'File loaded into reference via waver Load button', {
+      referenceId,
+      assetId,
+      samples: samples.length,
+    });
+
+    if (referenceId === activeReferenceId.value) {
+      try {
+        await recomputeReference(referenceId);
+      } catch (error) {
+        reportError('Recompute after loading into reference failed', error, "Couldn't analyze the new reference.");
+      }
+    }
+  }
+
   /**
    * Dropping A invalidates every reference's IR: each is a function of A's spectrum, so
    * with A gone there is nothing left to match against. Mark them all stale rather than
@@ -1412,6 +1493,8 @@ export const useAnalysisStore = defineStore('analysis', () => {
     loadFile,
     finishRecordingIntoA,
     finishRecordingIntoReference,
+    finishLoadIntoA,
+    finishLoadIntoReference,
     clearFile,
     updateSelectionA,
     computeSpectrumA,

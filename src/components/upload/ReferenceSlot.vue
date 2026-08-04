@@ -57,22 +57,12 @@
       @dragleave="dragActive = false"
       @drop.prevent="onDrop"
     >
-      <input
-        ref="input"
-        type="file"
-        multiple
-        :accept="acceptAttr"
-        @change="onFileSelect"
-        style="display: none"
-      />
-
       <WaveformEditor
         v-if="activeTarget"
         :target="activeTarget"
         :active="showWaveform"
         @clear="onClearActive"
         @status="setStatus"
-        @load-click="input?.click()"
       />
 
       <div v-if="loading" class="loading-state">
@@ -88,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, watch } from 'vue';
 import Icon from '../Icon.vue';
 import TooltipIcon from '../TooltipIcon.vue';
 import WaveformEditor from './WaveformEditor.vue';
@@ -109,7 +99,6 @@ const emit = defineEmits<{
 }>();
 
 const store = useAnalysisStore();
-const input = ref<HTMLInputElement>();
 const { message, show, clear: clearStatus } = useStatusMessage();
 
 function setStatus(text: string, durationMs?: number): void {
@@ -117,7 +106,7 @@ function setStatus(text: string, durationMs?: number): void {
   else clearStatus();
 }
 
-const { acceptAttr, loading, dragActive, handleFileSelect, handleDrop, loadFile, loadFileInto, clear } = useReferenceFileLoader({
+const { loading, dragActive, handleDrop, loadFile, loadFileInto, clear } = useReferenceFileLoader({
   onLoaded: (_id, file) => emit('file-loaded', file),
   onError: show,
 });
@@ -173,28 +162,13 @@ watch(
   { immediate: true },
 );
 
-async function onFileSelect(event: Event): Promise<void> {
-  const files = (event.target as HTMLInputElement).files;
-  // Filling in the active empty tab (a "+"-created placeholder) takes the file into
-  // THAT tab rather than opening a new one; any further files picked alongside it
-  // (the input allows multiple) still land as new tabs the normal way.
-  if (activeIsEmpty.value && store.activeReferenceId && files && files.length > 0) {
-    const [first, ...rest] = Array.from(files);
-    await loadFileInto(store.activeReferenceId, first);
-    for (const f of rest) await loadFile(f);
-  } else {
-    await handleFileSelect(event);
-  }
-  if (input.value) input.value.value = '';
-}
-
 async function onDrop(event: DragEvent): Promise<void> {
-  // Same "fill the active empty tab instead of opening a new one" special-case
-  // onFileSelect already applies — without it, dropping a file while the auto-seeded
-  // empty tab is active (the common case now that a reference slot always starts with
-  // one, per the watch above) would silently add a 2nd, inactive tab instead of ever
-  // showing the dropped audio, since addReference() only activates a *new* tab when
-  // no tab was active yet (see analysisStore.addReference), and one already is here.
+  // "Fill the active empty tab instead of opening a new one" — without this, dropping a
+  // file while the auto-seeded empty tab is active (the common case now that a reference
+  // slot always starts with one, per the watch above) would silently add a 2nd, inactive
+  // tab instead of ever showing the dropped audio, since addReference() only activates a
+  // *new* tab when no tab was active yet (see analysisStore.addReference), and one
+  // already is here.
   const files = event.dataTransfer?.files;
   if (activeIsEmpty.value && store.activeReferenceId && files && files.length > 0) {
     dragActive.value = false;
@@ -218,7 +192,6 @@ function onRemoveTab(id: string): void {
 
 function onClearActive(): void {
   if (store.activeReferenceId) clear(store.activeReferenceId);
-  if (input.value) input.value.value = '';
 }
 
 function onAddEmpty(): void {

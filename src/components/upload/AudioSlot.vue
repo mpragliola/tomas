@@ -18,20 +18,11 @@
       @dragleave="dragActive = false"
       @drop.prevent="handleDrop"
     >
-      <input
-        ref="input"
-        type="file"
-        :accept="acceptAttr"
-        @change="handleFileSelect"
-        style="display: none"
-      />
-
       <WaveformEditor
         target="A"
         :active="showWaveform"
         @clear="clearSlot"
         @status="setStatus"
-        @load-click="input?.click()"
       />
 
       <div v-if="loading" class="loading-state">
@@ -47,7 +38,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import TooltipIcon from '../TooltipIcon.vue';
 import WaveformEditor from './WaveformEditor.vue';
 import { useAnalysisStore } from '../../stores/analysisStore';
@@ -64,7 +55,6 @@ const emit = defineEmits<{
 }>();
 
 const store = useAnalysisStore();
-const input = ref<HTMLInputElement>();
 const { message, show, clear: clearStatus } = useStatusMessage();
 
 // An empty message means "whatever was showing no longer applies", not "show nothing
@@ -74,7 +64,7 @@ function setStatus(text: string, durationMs?: number): void {
   else clearStatus();
 }
 
-const { acceptAttr, loading, dragActive, handleFileSelect, handleDrop, clear } = useAudioFileLoader({
+const { loading, dragActive, handleDrop, clear } = useAudioFileLoader({
   onLoaded: (file) => emit('file-loaded', file),
   onError: show,
 });
@@ -97,7 +87,6 @@ const showWaveform = computed(() => !loading.value);
 
 function clearSlot(): void {
   clear();
-  if (input.value) input.value.value = '';
 }
 </script>
 
