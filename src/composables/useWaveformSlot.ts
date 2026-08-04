@@ -71,6 +71,8 @@ export interface WaverHandle {
   element: () => { clientWidth: number } | null;
   getSamples: () => Float32Array;
   getSampleRate: () => number;
+  isRecording: () => boolean;
+  reset: () => void;
 }
 
 export interface WaveformSlotOptions {

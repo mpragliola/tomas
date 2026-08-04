@@ -59,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Waver } from 'waver/vue';
 import type { ViewMode } from 'waver';
 import Icon from '../Icon.vue';
@@ -125,13 +125,72 @@ const { theme, zoom, setZoom, resetView, onSelectionChange, onCursorChange, onZo
   },
 );
 
+/** Does `store.recordingTarget` (or a target snapshot) refer to the same slot as `target`? */
+function sameTarget(a: WaveformTarget, b: WaveformTarget | null): boolean {
+  if (b === null) return false;
+  return a === 'A' ? b === 'A' : b !== 'A' && b.referenceId === a.referenceId;
+}
+
 const recordButtonState = computed<'enabled' | 'disabled'>(() => {
   const lockedTo = store.recordingTarget;
   if (lockedTo === null) return 'enabled';
-  const isThisSlot =
-    props.target === 'A' ? lockedTo === 'A' : lockedTo !== 'A' && lockedTo.referenceId === props.target.referenceId;
-  return isThisSlot ? 'enabled' : 'disabled';
+  return sameTarget(props.target, lockedTo) ? 'enabled' : 'disabled';
 });
+
+/**
+ * This instance is reused across reference-tab switches (ReferenceSlot.vue swaps only the
+ * `target` prop, never remounting) and can also unmount outright (last tab removed, or
+ * navigating away). waver's `disconnectedCallback()` calls `recorderEngine?.cancel()` on
+ * teardown, which tears the recorder down silently — no `recordstop`/`recorderror` fires.
+ * Since `onRecordStop`/`onRecordError` above are the only places that ever clear
+ * `store.recordingTarget`, a mid-recording tab switch or unmount would otherwise leave the
+ * lock stuck forever (every slot's Record button permanently disabled, no recovery short of
+ * a reload).
+ *
+ * Only touches the lock when it's still this instance's own target (never someone else's
+ * recording) and this instance actually still has a live recording in progress (waver's own
+ * `isRecording()`, not just "was this target once locked").
+ */
+function isOrphanedHere(target: WaveformTarget): boolean {
+  return sameTarget(target, store.recordingTarget) && waverRef.value?.isRecording() === true;
+}
+
+/**
+ * Unmount: `onBeforeUnmount`, not `onUnmounted` — at this point the component and its
+ * `<wave-r>` element are still fully live, so `waverRef.value` is guaranteed non-null and
+ * `isRecording()` reads the pre-teardown state directly. Whether Vue nulls the template ref
+ * (or the browser has already run `disconnectedCallback()`) by the time `onUnmounted` fires
+ * isn't a contract either side promises, so this is the reliable point to check. No need to
+ * stop anything here — `disconnectedCallback()` calling `recorderEngine?.cancel()` right
+ * after this component tears down handles that; only the app-level lock needs releasing.
+ */
+onBeforeUnmount(() => {
+  if (isOrphanedHere(props.target)) store.recordingTarget = null;
+});
+
+/**
+ * Tab switch: the same `<Waver>` DOM element stays mounted (only `props.target`'s value
+ * changes), so `disconnectedCallback()` never fires and the recorder keeps running in the
+ * background against a target that's no longer displayed — `isRecording()` and the element's
+ * own recording UI would still read "recording" under the *new* tab. Left alone, a user could
+ * then hit what looks like that tab's Stop button and have the orphaned take saved into the
+ * wrong slot (`onRecordStop` reads the *current* `props.target`). `reset()` stops and discards
+ * the take instead of saving it — correct here, since switching tabs (not clicking Stop) is
+ * what ended it. Safe to clear the element's samples too: `useWaveformSlot`'s own watch on the
+ * same target change reloads the new target's audio via `loadSamples()` right after this runs
+ * — that watch is `flush: 'post'` (runs after DOM update) while this one uses the default
+ * `flush: 'pre'` (runs before), so this always resolves first and nothing is left showing the
+ * discarded recording.
+ */
+watch(
+  () => props.target,
+  (_newTarget, oldTarget) => {
+    if (oldTarget === undefined || !isOrphanedHere(oldTarget)) return;
+    store.recordingTarget = null;
+    waverRef.value?.reset();
+  },
+  { flush: 'pre' },
+);
 
 function onRecordStart(): void {
   store.recordingTarget = props.target;
