@@ -6,7 +6,7 @@
 
     <div class="device-select">
       <label class="input-label">Input device</label>
-      <select v-model="store.selectedInputDeviceId" class="device-dropdown">
+      <select v-model="selectedDeviceId" class="device-dropdown">
         <option value="">System default</option>
         <option v-for="d in devices" :key="d.deviceId" :value="d.deviceId">{{ d.label }}</option>
       </select>
@@ -14,7 +14,7 @@
 
     <div class="device-select">
       <label class="input-label">Input channel</label>
-      <select v-model.number="store.selectedChannelIndex" :disabled="channelCount < 2" class="device-dropdown">
+      <select v-model.number="channelIndex" :disabled="channelCount < 2" class="device-dropdown">
         <option v-for="n in channelCount" :key="n" :value="n - 1">
           Channel {{ n }}{{ channelCount === 2 ? (n === 1 ? ' (left)' : ' (right)') : '' }}
         </option>
@@ -38,9 +38,12 @@ const store = useAnalysisStore();
 const alwaysFalse = { value: false };
 const { devices, selectedDeviceId, channelCount, channelIndex } = useAudioDevices(alwaysFalse);
 
-// useAudioDevices owns its own selectedDeviceId/channelIndex refs (used to drive its
-// internal channel-count probing) — mirror them into the store's refs so WaveformEditor
-// can read the current selection without importing this composable itself.
+// The dropdowns above bind directly to useAudioDevices' own selectedDeviceId/channelIndex
+// refs (not the store's) — that's what makes the composable's internal
+// `watch(selectedDeviceId, ...) => refreshChannels()` fire on every device change, and
+// what makes refreshChannels()'s own out-of-range clamp of channelIndex take effect. Only
+// mirror the (now-authoritative) composable values one-way into the store afterward, so
+// WaveformEditor can read the current selection without importing this composable itself.
 watch(selectedDeviceId, (v) => { store.selectedInputDeviceId = v; });
 watch(channelIndex, (v) => { store.selectedChannelIndex = v; });
 </script>

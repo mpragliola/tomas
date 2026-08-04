@@ -231,19 +231,53 @@ function onRecordError(error: Error): void {
  */
 const inputStream = ref<MediaStream | null>(null);
 
+/**
+ * Guards against two races around the `await openInputStream(...)` below, both of which
+ * would otherwise leak a live MediaStream (mic stays "on" in the browser's own recording
+ * indicator with nothing left referencing it to ever stop it):
+ *  1. Two device switches in quick succession — the first call's `getUserMedia()` can
+ *     still resolve after the second call has already started (or already finished and
+ *     assigned `inputStream.value`), and would otherwise stomp the newer stream in place
+ *     without ever stopping its own now-abandoned one.
+ *  2. Unmount while a call is still in flight — the existing `onUnmounted` below only
+ *     stops whatever `inputStream.value` already holds at that moment; it can't stop a
+ *     stream that resolves *after* unmount, because nothing assigns it there yet.
+ * Each call captures the generation counter's value at its own start; if the counter has
+ * moved on by the time its `getUserMedia()` resolves, this call is stale — its stream (if
+ * it got one) is stopped immediately instead of stored, and `inputStream.value` is left
+ * untouched (whatever the newer call already put there, or unmount already cleared).
+ */
+let inputStreamGeneration = 0;
+
 async function refreshInputStream(): Promise<void> {
+  const generation = ++inputStreamGeneration;
+
   inputStream.value?.getTracks().forEach((t) => t.stop());
   inputStream.value = null;
   if (!store.selectedInputDeviceId) return; // "system default" — let waver fall back to getUserMedia itself
+
+  let stream: MediaStream | null = null;
   try {
-    inputStream.value = await openInputStream(store.selectedInputDeviceId);
+    stream = await openInputStream(store.selectedInputDeviceId);
   } catch {
-    inputStream.value = null;
+    stream = null;
   }
+
+  if (generation !== inputStreamGeneration) {
+    // A newer call (or unmount, which also bumps the generation) started while this one
+    // was awaiting getUserMedia() — this stream is stale, discard without storing it.
+    stream?.getTracks().forEach((t) => t.stop());
+    return;
+  }
+  inputStream.value = stream;
 }
 
 watch(() => store.selectedInputDeviceId, refreshInputStream, { immediate: true });
-onUnmounted(() => inputStream.value?.getTracks().forEach((t) => t.stop()));
+
+onUnmounted(() => {
+  inputStreamGeneration++; // invalidate any in-flight refreshInputStream() call
+  inputStream.value?.getTracks().forEach((t) => t.stop());
+});
 
 /** Same seam useWaveformSlot uses internally — resolve buffer/rate/selection for
  * whichever target this instance is showing. */
