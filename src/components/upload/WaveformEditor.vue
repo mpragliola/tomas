@@ -26,6 +26,7 @@
         @monitorstop="onMonitorStop"
         @loadsuccess="onLoadSuccess"
         @loaderror="onLoadError"
+        @reset="clearAndReset"
       />
     </div>
 
@@ -60,9 +61,6 @@
         @click.stop="resetView"
       >
         <Icon name="rotate-ccw" size="14" />
-      </button>
-      <button type="button" class="cancel-btn" title="Remove file" aria-label="Remove file" @click.stop="clearAndReset">
-        <Icon name="x" size="16" />
       </button>
     </div>
   </div>
@@ -479,18 +477,6 @@ $icon-btn-size: 28px;
     border-color: var(--color-accent);
     color: var(--color-accent);
     background-color: color-mix(in srgb, var(--color-accent) 15%, transparent);
-  }
-}
-
-.cancel-btn {
-  @include icon-btn;
-  padding: 4px 8px;
-  font-size: var(--font-size-base);
-
-  &:hover {
-    border-color: var(--color-error);
-    color: var(--color-error);
-    background-color: color-mix(in srgb, var(--color-error) 5%, transparent);
   }
 }
 </style>
