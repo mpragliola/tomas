@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { useAnalysisStore } from '../../../src/stores/analysisStore';
 import { setActivePinia, createPinia } from 'pinia';
 import { toneFile } from '../../fixtures';
+import { parseWavFile } from '../../../src/services/audio/wavParser';
+import { loadFixtureIntoA, addFixtureReference } from './helpers';
 
 describe('analysisStore empty references and reference recording', () => {
   beforeEach(() => {
@@ -50,16 +52,16 @@ describe('analysisStore empty references and reference recording', () => {
     });
   });
 
-  describe('addReference(file, targetId)', () => {
+  describe('finishLoadIntoReference (filling an empty tab via waver\'s own Load button)', () => {
     it('fills an existing empty tab instead of creating a new one', async () => {
       const store = useAnalysisStore();
-      await store.loadFile(toneFile('harmonic-e2'));
+      await loadFixtureIntoA(store, 'harmonic-e2');
       const emptyId = store.addEmptyReference();
       expect(store.referenceOrder.length).toBe(1);
 
-      const resultId = await store.addReference(toneFile('white-noise'), emptyId);
+      const parsed = await parseWavFile(toneFile('white-noise'));
+      await store.finishLoadIntoReference(emptyId, 'white-noise', parsed.audioData, parsed.channels, parsed.header.sampleRate);
 
-      expect(resultId).toBe(emptyId);
       expect(store.referenceOrder.length).toBe(1); // no second tab created
       expect(store.references[emptyId]!.assetId).not.toBeNull();
       expect(store.references[emptyId]!.label).toContain('white-noise');
@@ -68,38 +70,27 @@ describe('analysisStore empty references and reference recording', () => {
 
     it('recomputes immediately when the filled-in tab is the active one', async () => {
       const store = useAnalysisStore();
-      await store.loadFile(toneFile('harmonic-e2'));
+      await loadFixtureIntoA(store, 'harmonic-e2');
       const emptyId = store.addEmptyReference(); // auto-activates
       expect(store.activeReferenceId).toBe(emptyId);
 
-      await store.addReference(toneFile('white-noise'), emptyId);
+      const parsed = await parseWavFile(toneFile('white-noise'));
+      await store.finishLoadIntoReference(emptyId, 'white-noise', parsed.audioData, parsed.channels, parsed.header.sampleRate);
 
       expect(store.references[emptyId]!.ir).not.toBeNull();
       expect(store.references[emptyId]!.stale).toBe(false);
     });
 
-    it('rejects a targetId that already points at a filled reference, without creating a new tab', async () => {
-      const store = useAnalysisStore();
-      await store.loadFile(toneFile('sine-1k'));
-      const filledId = await store.addReference(toneFile('sine-1k'));
-      const before = store.referenceOrder.length;
-
-      const result = await store.addReference(toneFile('white-noise'), filledId);
-
-      expect(result).toBe('');
-      expect(store.referenceOrder.length).toBe(before);
-      expect(store.lastError).not.toBeNull();
-    });
-
-    it('does not count a targetId fill against MAX_REFERENCES', async () => {
+    it('does not count filling an existing empty tab against MAX_REFERENCES', async () => {
       const store = useAnalysisStore();
       for (let i = 0; i < store.MAX_REFERENCES; i++) store.addEmptyReference();
       const [firstId] = store.referenceOrder;
 
-      const resultId = await store.addReference(toneFile('sine-1k'), firstId);
+      const parsed = await parseWavFile(toneFile('sine-1k'));
+      await store.finishLoadIntoReference(firstId, 'sine-1k', parsed.audioData, parsed.channels, parsed.header.sampleRate);
 
-      expect(resultId).toBe(firstId);
       expect(store.referenceOrder.length).toBe(store.MAX_REFERENCES); // unchanged, still at the ceiling
+      expect(store.references[firstId]!.assetId).not.toBeNull();
     });
   });
 
@@ -129,10 +120,10 @@ describe('analysisStore empty references and reference recording', () => {
 
     it('finishRecordingIntoReference creates a new asset and does not disturb A or a different reference', async () => {
       const store = useAnalysisStore();
-      await store.loadFile(toneFile('harmonic-e2'));
+      await loadFixtureIntoA(store, 'harmonic-e2');
       const aLengthBefore = store.audioBufferA.length;
 
-      const otherId = await store.addReference(toneFile('white-noise'));
+      const otherId = await addFixtureReference(store, 'white-noise');
       const otherAssetId = store.references[otherId]!.assetId!;
       const otherBufferBefore = store.audioAssets[otherAssetId]!.buffer;
 

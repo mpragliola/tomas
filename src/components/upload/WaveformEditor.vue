@@ -14,6 +14,7 @@
         :monitor-button="monitorButtonState"
         :input-stream="inputStream"
         :channel-index="store.selectedChannelIndex"
+        :validate-file="validateFile"
         class="waveform-host"
         @selectionchange="onSelectionChange"
         @cursorchange="onCursorChange"
@@ -75,6 +76,7 @@ import Icon from '../Icon.vue';
 import { useAnalysisStore } from '../../stores/analysisStore';
 import { useSpectrumScheduler } from '../../composables/useSpectrumScheduler';
 import { openInputStream } from '../../services/audio/devices';
+import { SUPPORTED_AUDIO_EXTENSIONS, isSupportedAudioFile } from '../../services/audio/audioLoader';
 import {
   useWaveformSlot,
   ZOOM_MIN,
@@ -82,6 +84,8 @@ import {
   type WaveformTarget,
   type WaverHandle,
 } from '../../composables/useWaveformSlot';
+
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
 const props = defineProps<{
   target: WaveformTarget;
@@ -268,8 +272,26 @@ async function onLoadSuccess(detail: { fileName: string }): Promise<void> {
   }
 }
 
+/** Fires both for a `validateFile` rejection (a complete, user-facing message already,
+ * e.g. "File is empty") and a real decode failure (a generic browser error) — same
+ * one-line surface `useAudioFileLoader`'s `onError` used for both cases before. */
 function onLoadError(error: Error): void {
-  emit('status', `Couldn't load file: ${error.message}`, 3000);
+  emit('status', error.message, 3000);
+}
+
+/** Runs before waver decodes a file picked via its own Load button or its own drag-drop
+ * (the app no longer has a file input or drop zone of its own for either) — same checks
+ * `useAudioFileLoader`/`useReferenceFileLoader` used to run in front of their own inputs. */
+function validateFile(file: File): string | null {
+  if (!isSupportedAudioFile(file.name)) {
+    const ext = file.name.split('.').pop() || 'unknown';
+    return `Invalid file type. Expected one of ${SUPPORTED_AUDIO_EXTENSIONS.join(', ')}, got ${ext}`;
+  }
+  if (file.size === 0) return 'File is empty';
+  if (file.size > MAX_FILE_SIZE) {
+    return `File too large. Max 100MB, got ${(file.size / 1024 / 1024).toFixed(1)}MB`;
+  }
+  return null;
 }
 
 function onMonitorStart(): void {

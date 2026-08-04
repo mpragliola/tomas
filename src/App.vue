@@ -26,7 +26,7 @@
       <div class="main-left" :class="isSpectrumExpanded ? 'spectrum-expanded' : 'spectrum-minimized'">
         <!-- Top: the two waves, spanning sidebar + spectrum width -->
         <div class="panel panel-waves panel-side-bg">
-          <FileUpload @file-loaded="onFileLoaded" />
+          <FileUpload />
         </div>
 
         <div class="main-lower">
@@ -160,10 +160,6 @@ function cycleTheme(): void {
   const currentIndex = THEME_ORDER.indexOf(currentTheme.value);
   currentTheme.value = THEME_ORDER[(currentIndex + 1) % THEME_ORDER.length];
   applyTheme(currentTheme.value);
-}
-
-function onFileLoaded(e: { target: 'A' | 'reference'; file: File }): void {
-  logger.info('App', 'File loaded event received', { target: e.target });
 }
 
 function onIRDerived(e: any): void {

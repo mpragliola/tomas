@@ -13,10 +13,7 @@
     />
 
     <!-- Single-reference view mirrors AudioSlot's source-name line; once tabs appear the
-         tab bar above already carries the label, so this would just duplicate it. Drag-drop
-         onto the still-wired drop zone below already lets a 2nd file join as a new tab, but
-         nothing clickable offered the same path — this "+" is that missing button. It now
-         adds an empty tab directly (matching ReferenceTabBar's "+"), not a file picker. -->
+         tab bar above already carries the label, so this would just duplicate it. -->
     <div v-if="soleReference && !showTabs" class="source-name-row">
       <div class="source-name" :title="soleReference.label">
         <span class="source-name-head">{{ nameHead }}</span><span class="source-name-tail">{{ nameTail }}</span>
@@ -49,26 +46,14 @@
       </div>
     </div>
 
-    <div
-      class="upload-area"
-      :class="{ active: dragActive, loaded: hasAnyReference }"
-      @dragover.prevent="dragActive = true"
-      @dragenter.prevent="dragActive = true"
-      @dragleave="dragActive = false"
-      @drop.prevent="onDrop"
-    >
+    <div class="upload-area" :class="{ loaded: hasAnyReference }">
       <WaveformEditor
         v-if="activeTarget"
         :target="activeTarget"
-        :active="showWaveform"
+        active
         @clear="onClearActive"
         @status="setStatus"
       />
-
-      <div v-if="loading" class="loading-state">
-        <div class="spinner"></div>
-        <p class="loading-text">Loading...</p>
-      </div>
     </div>
 
     <div v-if="message" class="status-message">
@@ -84,18 +69,12 @@ import TooltipIcon from '../TooltipIcon.vue';
 import WaveformEditor from './WaveformEditor.vue';
 import ReferenceTabBar from './ReferenceTabBar.vue';
 import { useAnalysisStore } from '../../stores/analysisStore';
-import { useReferenceFileLoader } from '../../composables/useReferenceFileLoader';
 import { useStatusMessage } from '../../composables/useStatusMessage';
 import type { WaveformTarget } from '../../composables/useWaveformSlot';
-import { isSupportedAudioFile } from '../../services/audio/audioLoader';
 
 defineProps<{
   title: string;
   tooltipText: string;
-}>();
-
-const emit = defineEmits<{
-  'file-loaded': [file: File];
 }>();
 
 const store = useAnalysisStore();
@@ -106,18 +85,9 @@ function setStatus(text: string, durationMs?: number): void {
   else clearStatus();
 }
 
-const { loading, dragActive, handleDrop, loadFile, loadFileInto, clear } = useReferenceFileLoader({
-  onLoaded: (_id, file) => emit('file-loaded', file),
-  onError: show,
-});
-
 const hasAnyReference = computed(() => store.referenceOrder.length > 0);
 const showTabs = computed(() => store.referenceOrder.length > 1);
 const atMaxReferences = computed(() => store.referenceOrder.length >= store.MAX_REFERENCES);
-
-const activeRef = computed(() => (store.activeReferenceId ? store.references[store.activeReferenceId] ?? null : null));
-/** The active tab exists but has no audio yet — a "+"-created placeholder, most likely. */
-const activeIsEmpty = computed(() => activeRef.value !== null && activeRef.value.assetId === null);
 
 /** The lone reference before a 2nd is added — same single-slot look AudioSlot uses. */
 const soleReference = computed(() => {
@@ -138,8 +108,6 @@ const nameTail = computed(() => {
 const activeTarget = computed<WaveformTarget | null>(() =>
   store.activeReferenceId ? { referenceId: store.activeReferenceId } : null,
 );
-
-const showWaveform = computed(() => !loading.value);
 
 /**
  * Zero-reference chicken-and-egg: `WaveformEditor` needs a concrete `WaveformTarget`
@@ -162,36 +130,16 @@ watch(
   { immediate: true },
 );
 
-async function onDrop(event: DragEvent): Promise<void> {
-  // "Fill the active empty tab instead of opening a new one" — without this, dropping a
-  // file while the auto-seeded empty tab is active (the common case now that a reference
-  // slot always starts with one, per the watch above) would silently add a 2nd, inactive
-  // tab instead of ever showing the dropped audio, since addReference() only activates a
-  // *new* tab when no tab was active yet (see analysisStore.addReference), and one
-  // already is here.
-  const files = event.dataTransfer?.files;
-  if (activeIsEmpty.value && store.activeReferenceId && files && files.length > 0) {
-    dragActive.value = false;
-    const supported = Array.from(files).filter((f) => isSupportedAudioFile(f.name));
-    if (supported.length === 0) return;
-    const [first, ...rest] = supported;
-    await loadFileInto(store.activeReferenceId, first);
-    for (const f of rest) await loadFile(f);
-  } else {
-    await handleDrop(event);
-  }
-}
-
 function onClone(id: string): void {
   store.cloneReference(id);
 }
 
 function onRemoveTab(id: string): void {
-  clear(id);
+  store.removeReference(id);
 }
 
 function onClearActive(): void {
-  if (store.activeReferenceId) clear(store.activeReferenceId);
+  if (store.activeReferenceId) store.removeReference(store.activeReferenceId);
 }
 
 function onAddEmpty(): void {
@@ -202,8 +150,6 @@ function onAddEmpty(): void {
 <style lang="scss" scoped>
 @use '../../styles/variables' as *;
 @use '../../styles/mixins' as *;
-
-$spinner-size: 20px;
 
 .section {
   margin-bottom: 12px;
@@ -286,56 +232,15 @@ $spinner-size: 20px;
   padding: 12px;
   text-align: center;
   transition: all $transition-fast;
-  cursor: pointer;
   min-height: 80px;
   display: flex;
   flex-direction: column;
 
-  &:hover:not(.loaded) {
-    border-color: var(--color-accent);
-    background-color: color-mix(in srgb, var(--color-accent) 2%, transparent);
-  }
-
-  &.active {
-    border-color: var(--color-accent);
-    background-color: color-mix(in srgb, var(--color-accent) 5%, transparent);
-  }
-
   &.loaded {
     border-color: var(--color-accent);
     background-color: color-mix(in srgb, var(--color-accent) 3%, transparent);
-    cursor: default;
     padding: 8px;
   }
-}
-
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px 0;
-  flex: 1;
-}
-
-.spinner {
-  width: $spinner-size;
-  height: $spinner-size;
-  border: 2px solid color-mix(in srgb, var(--color-accent) 20%, transparent);
-  border-top-color: var(--color-accent);
-  border-radius: 50%;
-  animation: spin 600ms linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.loading-text {
-  margin: 0;
-  font-size: var(--font-size-label);
-  color: var(--color-text-secondary);
 }
 
 .status-message {

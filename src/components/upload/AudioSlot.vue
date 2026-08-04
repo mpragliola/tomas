@@ -10,25 +10,13 @@
       <span class="source-name-head">{{ nameHead }}</span><span class="source-name-tail">{{ nameTail }}</span>
     </div>
 
-    <div
-      class="upload-area"
-      :class="{ active: dragActive, loaded: hasAudio }"
-      @dragover.prevent="dragActive = true"
-      @dragenter.prevent="dragActive = true"
-      @dragleave="dragActive = false"
-      @drop.prevent="handleDrop"
-    >
+    <div class="upload-area" :class="{ loaded: hasAudio }">
       <WaveformEditor
         target="A"
-        :active="showWaveform"
+        active
         @clear="clearSlot"
         @status="setStatus"
       />
-
-      <div v-if="loading" class="loading-state">
-        <div class="spinner"></div>
-        <p class="loading-text">Loading...</p>
-      </div>
     </div>
 
     <div v-if="message" class="status-message">
@@ -42,16 +30,11 @@ import { computed } from 'vue';
 import TooltipIcon from '../TooltipIcon.vue';
 import WaveformEditor from './WaveformEditor.vue';
 import { useAnalysisStore } from '../../stores/analysisStore';
-import { useAudioFileLoader } from '../../composables/useAudioFileLoader';
 import { useStatusMessage } from '../../composables/useStatusMessage';
 
-const props = defineProps<{
+defineProps<{
   title: string;
   tooltipText: string;
-}>();
-
-const emit = defineEmits<{
-  'file-loaded': [file: File];
 }>();
 
 const store = useAnalysisStore();
@@ -64,12 +47,6 @@ function setStatus(text: string, durationMs?: number): void {
   else clearStatus();
 }
 
-const { loading, dragActive, handleDrop, clear } = useAudioFileLoader({
-  onLoaded: (file) => emit('file-loaded', file),
-  onError: show,
-});
-
-// Driven by the store, not by the picked File — so recordings show a waveform too
 const hasAudio = computed(() => store.audioBufferA.length > 0);
 
 const sourceName = computed(() => (hasAudio.value ? store.sourceNameA : ''));
@@ -83,18 +60,14 @@ const nameTail = computed(() =>
   sourceName.value.length > TAIL_CHARS + 4 ? sourceName.value.slice(-TAIL_CHARS) : '',
 );
 
-const showWaveform = computed(() => !loading.value);
-
 function clearSlot(): void {
-  clear();
+  store.clearFile();
 }
 </script>
 
 <style lang="scss" scoped>
 @use '../../styles/variables' as *;
 @use '../../styles/mixins' as *;
-
-$spinner-size: 20px;
 
 .section {
   margin-bottom: 12px;
@@ -138,56 +111,15 @@ $spinner-size: 20px;
   padding: 12px;
   text-align: center;
   transition: all $transition-fast;
-  cursor: pointer;
   min-height: 80px;
   display: flex;
   flex-direction: column;
 
-  &:hover:not(.loaded) {
-    border-color: var(--color-accent);
-    background-color: color-mix(in srgb, var(--color-accent) 2%, transparent);
-  }
-
-  &.active {
-    border-color: var(--color-accent);
-    background-color: color-mix(in srgb, var(--color-accent) 5%, transparent);
-  }
-
   &.loaded {
     border-color: var(--color-accent);
     background-color: color-mix(in srgb, var(--color-accent) 3%, transparent);
-    cursor: default;
     padding: 8px;
   }
-}
-
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px 0;
-  flex: 1;
-}
-
-.spinner {
-  width: $spinner-size;
-  height: $spinner-size;
-  border: 2px solid color-mix(in srgb, var(--color-accent) 20%, transparent);
-  border-top-color: var(--color-accent);
-  border-radius: 50%;
-  animation: spin 600ms linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.loading-text {
-  margin: 0;
-  font-size: var(--font-size-label);
-  color: var(--color-text-secondary);
 }
 
 .status-message {

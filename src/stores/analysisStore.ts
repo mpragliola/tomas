@@ -3,7 +3,6 @@ import { ref, shallowRef, watch } from 'vue';
 import type { FrequencySpectrum, FFTConfig } from '../types/spectrum';
 import type { ImpulseResponse, ToneCurve } from '../types/ir';
 import type {
-  AudioBuffer,
   RecordTarget,
   PlaybackMode,
   WavHeader,
@@ -14,7 +13,6 @@ import type {
 import type { GraphicEqBand, GraphicEqState } from '../types/graphicEq';
 import { createDefaultGraphicEqState } from '../types/graphicEq';
 import { logger } from '../services/logging';
-import { parseAudioFile } from '../services/audio/audioLoader';
 import { computeAveragedFFT } from '../services/audio/fftProcessor';
 import { extractSpectrum } from '../services/dsp/spectrum';
 import { deriveToneCurve, renderToneMatchIR } from '../services/dsp/irDerivation';
@@ -239,30 +237,6 @@ export const useAnalysisStore = defineStore('analysis', () => {
   // ---------------------------------------------------------------------------------
   // A: load / record / clear
   // ---------------------------------------------------------------------------------
-
-  async function loadFile(file: File): Promise<void> {
-    logger.info('analysisStore', 'Loading file', { fileName: file.name });
-
-    const parsed: AudioBuffer = await parseAudioFile(file);
-    audioBufferA.value = parsed.audioData;
-    channelBufferA.value = parsed.channels;
-    audioHeaderA.value = parsed.header;
-    sampleRateA.value = parsed.header.sampleRate;
-    sourceNameA.value = file.name;
-
-    selectionA.value = {
-      startSample: 0,
-      endSample: parsed.audioData.length,
-      duration: parsed.header.duration * 1000,
-    };
-
-    logger.info('analysisStore', 'File A loaded', {
-      samples: parsed.audioData.length,
-      sampleRate: parsed.header.sampleRate,
-    });
-
-    await autoComputeSpectrumA();
-  }
 
   /**
    * Spectrum for A right after it got new audio, from a file or from a take. The
@@ -517,120 +491,12 @@ export const useAnalysisStore = defineStore('analysis', () => {
   // ---------------------------------------------------------------------------------
 
   /**
-   * Adds a reference. With no `targetId`, always creates a brand-new tab (existing
-   * behavior). With a `targetId` pointing at an existing, genuinely EMPTY tab (its
-   * `assetId` is null — the "+"-created placeholder, or a not-yet-filled tab), the file
-   * is loaded into THAT tab instead of creating another one — a caller passing a
-   * `targetId` for an already-filled reference is a caller bug, not a user-facing error,
-   * so it's rejected silently (falls through to the create-new-tab path would double up
-   * the tab; ignoring the file entirely is safer than guessing which tab was meant).
-   */
-  async function addReference(file: File, targetId?: string): Promise<string> {
-    const target = targetId ? references.value[targetId] : undefined;
-    if (targetId && (!target || target.assetId !== null)) {
-      reportError(
-        'addReference targetId invalid',
-        new Error(`Reference ${targetId} is not an empty tab`),
-        "Couldn't load into that tab — try again.",
-      );
-      return '';
-    }
-
-    if (!target && referenceOrder.value.length >= MAX_REFERENCES) {
-      reportError(
-        'addReference rejected',
-        new Error('Max references reached'),
-        `You can compare up to ${MAX_REFERENCES} references at once — remove one before adding another.`,
-      );
-      return '';
-    }
-
-    logger.info('analysisStore', 'Adding reference', { fileName: file.name, targetId });
-    // Parse failures are left to throw, same as `loadFile` — the caller/composable owns
-    // reporting a decode failure, since only it knows whether this was a user-visible pick.
-    const parsed: AudioBuffer = await parseAudioFile(file);
-
-    const assetId = generateId('asset');
-    audioAssets.value[assetId] = {
-      id: assetId,
-      buffer: parsed.audioData,
-      channels: parsed.channels,
-      sampleRate: parsed.header.sampleRate,
-      header: parsed.header,
-      sourceName: file.name,
-    };
-
-    const label = disambiguateLabel(file.name);
-    const selection = {
-      startSample: 0,
-      endSample: parsed.audioData.length,
-      duration: parsed.header.duration * 1000,
-    };
-
-    if (target) {
-      target.assetId = assetId;
-      target.selection = selection;
-      target.label = label;
-      target.stale = true;
-
-      logger.info('analysisStore', 'Reference filled in from empty', {
-        id: targetId,
-        assetId,
-        label,
-        samples: parsed.audioData.length,
-      });
-
-      if (targetId === activeReferenceId.value) {
-        try {
-          await recomputeReference(targetId!);
-        } catch (error) {
-          reportError('Recompute after filling empty reference failed', error, "Couldn't analyze the new file.");
-        }
-      }
-
-      return targetId!;
-    }
-
-    const id = generateId('ref');
-    references.value[id] = {
-      id,
-      assetId,
-      selection,
-      spectrum: null,
-      ir: null,
-      toneCurve: null,
-      graphicEq: createDefaultGraphicEqState(),
-      toneMatchConfig: { ...DEFAULT_TONE_MATCH_CONFIG },
-      playhead: null,
-      label,
-      stale: true,
-    };
-    referenceOrder.value.push(id);
-
-    logger.info('analysisStore', 'Reference added', {
-      id,
-      assetId,
-      label,
-      samples: parsed.audioData.length,
-    });
-
-    // Only the active tab's data is worth computing eagerly (see the staleness watch
-    // below) — the first reference added becomes active and so gets computed now; any
-    // later one just sits stale until the user selects it.
-    if (activeReferenceId.value === null) {
-      setActiveReference(id);
-    }
-
-    return id;
-  }
-
-  /**
    * Creates a reference tab with no audio yet — the "+" button's tab, filled in later by
-   * `addReference(file, id)` or a recording targeting `{referenceId: id}`. Unlike
-   * `addReference`, always activates immediately: an empty tab exists purely so the user
-   * can see its Load/Record buttons and fill it in, and there's nothing to compute yet
-   * that would make eager activation costly the way it would for a real (possibly stale)
-   * tab.
+   * a load into it via waver's Load button (`finishLoadIntoReference`) or a recording
+   * targeting `{referenceId: id}`. Always activates immediately: an empty tab exists
+   * purely so the user can see its Load/Record buttons and fill it in, and there's
+   * nothing to compute yet that would make eager activation costly the way it would for
+   * a real (possibly stale) tab.
    */
   function addEmptyReference(): string {
     if (referenceOrder.value.length >= MAX_REFERENCES) {
@@ -1490,7 +1356,6 @@ export const useAnalysisStore = defineStore('analysis', () => {
     selectedInputDeviceId,
     selectedChannelIndex,
     // Actions
-    loadFile,
     finishRecordingIntoA,
     finishRecordingIntoReference,
     finishLoadIntoA,
@@ -1498,7 +1363,6 @@ export const useAnalysisStore = defineStore('analysis', () => {
     clearFile,
     updateSelectionA,
     computeSpectrumA,
-    addReference,
     addEmptyReference,
     cloneReference,
     removeReference,
