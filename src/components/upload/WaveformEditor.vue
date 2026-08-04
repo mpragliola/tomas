@@ -61,7 +61,7 @@
       >
         <Icon name="rotate-ccw" size="14" />
       </button>
-      <button type="button" class="cancel-btn" title="Remove file" aria-label="Remove file" @click.stop="emit('clear')">
+      <button type="button" class="cancel-btn" title="Remove file" aria-label="Remove file" @click.stop="clearAndReset">
         <Icon name="x" size="16" />
       </button>
     </div>
@@ -292,6 +292,11 @@ function validateFile(file: File): string | null {
     return `File too large. Max 100MB, got ${(file.size / 1024 / 1024).toFixed(1)}MB`;
   }
   return null;
+}
+
+function clearAndReset(): void {
+  waverRef.value?.reset();
+  emit('clear');
 }
 
 function onMonitorStart(): void {

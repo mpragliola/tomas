@@ -156,7 +156,7 @@ describe('analysisStore empty references and reference recording', () => {
 
     it('recomputes immediately when recording lands in the active tab', async () => {
       const store = useAnalysisStore();
-      await store.loadFile(toneFile('harmonic-e2'));
+      await loadFixtureIntoA(store, 'harmonic-e2');
       const emptyId = store.addEmptyReference();
       expect(store.activeReferenceId).toBe(emptyId);
 
@@ -186,7 +186,7 @@ describe('analysisStore empty references and reference recording', () => {
       // empty ones) stale — with the active tab being empty, that queued a recompute
       // doomed to fail (`Reference X has no audio loaded`), surfacing as a
       // "Couldn't refresh that reference — try again." toast on every single A edit.
-      await store.loadFile(toneFile('harmonic-e2'));
+      await loadFixtureIntoA(store, 'harmonic-e2');
 
       expect(store.references[emptyId]!.stale).toBe(false);
       expect(store.lastError).toBeNull();
@@ -194,7 +194,7 @@ describe('analysisStore empty references and reference recording', () => {
 
     it('does not mark an empty tab stale when A is cleared', async () => {
       const store = useAnalysisStore();
-      await store.loadFile(toneFile('harmonic-e2'));
+      await loadFixtureIntoA(store, 'harmonic-e2');
       const emptyId = store.addEmptyReference();
 
       store.clearFile();
@@ -204,8 +204,8 @@ describe('analysisStore empty references and reference recording', () => {
 
     it('still marks a background filled reference stale on A recompute, while the active empty tab is left alone (the exact regression scenario: an empty tab stays active while A is edited)', async () => {
       const store = useAnalysisStore();
-      await store.loadFile(toneFile('harmonic-e2'));
-      const filledId = await store.addReference(toneFile('white-noise'));
+      await loadFixtureIntoA(store, 'harmonic-e2');
+      const filledId = await addFixtureReference(store, 'white-noise');
       expect(store.references[filledId]!.stale).toBe(false);
 
       // Adding the empty tab switches `activeReferenceId` to it — `filledId` is now the
@@ -219,7 +219,7 @@ describe('analysisStore empty references and reference recording', () => {
       // path were still reachable, this call itself would blow up. Filled-but-inactive
       // `filledId` still needs to end up properly stale so it recomputes correctly
       // whenever it's next selected.
-      await store.loadFile(toneFile('sine-1k'));
+      await loadFixtureIntoA(store, 'sine-1k');
 
       expect(store.references[filledId]!.stale).toBe(true);
       expect(store.references[emptyId]!.stale).toBe(false);

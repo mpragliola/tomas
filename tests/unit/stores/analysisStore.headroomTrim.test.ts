@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useAnalysisStore } from '../../../src/stores/analysisStore';
 import { setActivePinia, createPinia } from 'pinia';
-import { toneFile } from '../../fixtures';
 import { measureHeadroomTrim } from '../../../src/services/audio/headroom';
+import { loadFixtureIntoA, addFixtureReference } from './helpers';
 
 /**
  * Store-level coverage for the playback-path headroom trim (`headroomTrim()`,
@@ -150,8 +150,8 @@ describe('analysisStore headroom trim (playback path)', () => {
   describe('playback() — gainFor()/headroomTrim() applied to the real gain node', () => {
     it('sets gain.value to volume^2 * the measured trim for a processed take', async () => {
       const store = useAnalysisStore();
-      await store.loadFile(toneFile('harmonic-e2'));
-      const refId = await store.addReference(toneFile('white-noise'));
+      await loadFixtureIntoA(store, 'harmonic-e2');
+      const refId = await addFixtureReference(store, 'white-noise');
       await flush();
 
       const ref = store.references[refId]!;
@@ -185,8 +185,8 @@ describe('analysisStore headroom trim (playback path)', () => {
 
     it('scales gain by volume^2 at a fixed trim — same IR/audio, half volume', async () => {
       const store = useAnalysisStore();
-      await store.loadFile(toneFile('harmonic-e2'));
-      const refId = await store.addReference(toneFile('white-noise'));
+      await loadFixtureIntoA(store, 'harmonic-e2');
+      const refId = await addFixtureReference(store, 'white-noise');
       await flush();
 
       await store.playback(1, 'processed', 0, false);
@@ -205,8 +205,8 @@ describe('analysisStore headroom trim (playback path)', () => {
 
     it('applies no trim (gain == volume^2) for original (dry) playback, which never convolves', async () => {
       const store = useAnalysisStore();
-      await store.loadFile(toneFile('harmonic-e2'));
-      await store.addReference(toneFile('white-noise'));
+      await loadFixtureIntoA(store, 'harmonic-e2');
+      await addFixtureReference(store, 'white-noise');
       await flush();
 
       await store.playback(0.5, 'original', 0, false);
