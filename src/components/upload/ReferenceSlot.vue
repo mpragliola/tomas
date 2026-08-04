@@ -79,56 +79,24 @@
         <p class="loading-text">Loading...</p>
       </div>
 
-      <div v-else-if="isRecordingActive" class="empty-state">
-        <div class="buttons-row">
-          <button type="button" class="action-button stop" @click="emit('stop-record')">
-            <Icon name="square" size="16" />
-            Stop
-          </button>
-        </div>
-        <p class="recording-hint">Recording…</p>
-      </div>
-
       <!-- The active tab exists (a "+"-created placeholder, or one whose take/file was
-           removed) but has no audio yet — same Load File / Record pair AudioSlot shows
-           before A has anything loaded. -->
+           removed) but has no audio yet — same Load File button AudioSlot shows before A
+           has anything loaded. -->
       <div v-else-if="activeIsEmpty" class="empty-state">
         <div class="buttons-row">
           <button type="button" class="action-button" @click="input?.click()">
             <Icon name="download" size="16" />
             Load File
           </button>
-          <button
-            type="button"
-            class="action-button record"
-            :disabled="recordingElsewhere"
-            :title="recordingElsewhere ? 'Another slot is recording' : 'Record into this reference'"
-            @click="onRecordActive"
-          >
-            <Icon name="mic" size="16" />
-            Record
-          </button>
         </div>
       </div>
 
-      <!-- No reference tab exists at all yet. Record is offered here too (not just once a
-           tab already exists) — otherwise the very first reference could only ever come
-           from a file, an inconsistent gap next to every other tab being recordable. -->
+      <!-- No reference tab exists at all yet. -->
       <div v-else-if="!hasAnyReference" class="empty-state">
         <div class="buttons-row">
           <button type="button" class="action-button" @click="input?.click()">
             <Icon name="download" size="16" />
             Load File
-          </button>
-          <button
-            type="button"
-            class="action-button record"
-            :disabled="recordingElsewhere"
-            :title="recordingElsewhere ? 'Another slot is recording' : 'Record a new reference'"
-            @click="onRecordZero"
-          >
-            <Icon name="mic" size="16" />
-            Record
           </button>
         </div>
       </div>
@@ -158,8 +126,6 @@ defineProps<{
 
 const emit = defineEmits<{
   'file-loaded': [file: File];
-  record: [{ referenceId: string }];
-  'stop-record': [];
 }>();
 
 const store = useAnalysisStore();
@@ -183,12 +149,6 @@ const atMaxReferences = computed(() => store.referenceOrder.length >= store.MAX_
 const activeRef = computed(() => (store.activeReferenceId ? store.references[store.activeReferenceId] ?? null : null));
 /** The active tab exists but has no audio yet — a "+"-created placeholder, most likely. */
 const activeIsEmpty = computed(() => activeRef.value !== null && activeRef.value.assetId === null);
-
-const isRecordingActive = computed(() => {
-  const target = store.recordingTarget;
-  return typeof target === 'object' && target !== null && target.referenceId === store.activeReferenceId;
-});
-const recordingElsewhere = computed(() => store.recordingTarget !== null && !isRecordingActive.value);
 
 /** The lone reference before a 2nd is added — same single-slot look AudioSlot uses. */
 const soleReference = computed(() => {
@@ -246,15 +206,6 @@ function onClearActive(): void {
 
 function onAddEmpty(): void {
   store.addEmptyReference();
-}
-
-function onRecordActive(): void {
-  if (store.activeReferenceId) emit('record', { referenceId: store.activeReferenceId });
-}
-
-function onRecordZero(): void {
-  const id = store.addEmptyReference();
-  if (id) emit('record', { referenceId: id });
 }
 </script>
 
@@ -408,24 +359,6 @@ $spinner-size: 20px;
     cursor: not-allowed;
     filter: none;
   }
-
-  &.record { background-color: var(--color-error); }
-
-  &.stop {
-    background-color: var(--color-error);
-    animation: pulse-record 1s infinite;
-  }
-}
-
-@keyframes pulse-record {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.65; }
-}
-
-.recording-hint {
-  margin: 0;
-  font-size: var(--font-size-label);
-  color: var(--color-text-secondary);
 }
 
 .loading-state {

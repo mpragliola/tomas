@@ -10,6 +10,8 @@
       show-minimap
       load-button="hidden"
       :record-button="recordButtonState"
+      :input-stream="inputStream"
+      :channel-index="store.selectedChannelIndex"
       class="waveform-host"
       @selectionchange="onSelectionChange"
       @cursorchange="onCursorChange"
@@ -65,6 +67,7 @@ import type { ViewMode } from 'waver';
 import Icon from '../Icon.vue';
 import { useAnalysisStore } from '../../stores/analysisStore';
 import { useSpectrumScheduler } from '../../composables/useSpectrumScheduler';
+import { openInputStream } from '../../services/audio/devices';
 import {
   useWaveformSlot,
   ZOOM_MIN,
@@ -216,6 +219,31 @@ function onRecordError(error: Error): void {
   store.recordingTarget = null;
   emit('status', `Recording failed: ${error.message}`, 3000);
 }
+
+/**
+ * Opens a MediaStream for the store's currently-selected input device and hands it to
+ * this instance's <Waver> via the `inputStream` prop, so its Record button (and any
+ * explicit `startRecording()` call) uses the picked device instead of the default mic.
+ * Re-opened whenever the picker selection changes — not lazily on Record press — since
+ * `inputStream` must already be set before the user presses Record for that press to use
+ * it. Empty `selectedInputDeviceId` ("System default") intentionally leaves `inputStream`
+ * null so waver falls back to its own getUserMedia() default-device request.
+ */
+const inputStream = ref<MediaStream | null>(null);
+
+async function refreshInputStream(): Promise<void> {
+  inputStream.value?.getTracks().forEach((t) => t.stop());
+  inputStream.value = null;
+  if (!store.selectedInputDeviceId) return; // "system default" — let waver fall back to getUserMedia itself
+  try {
+    inputStream.value = await openInputStream(store.selectedInputDeviceId);
+  } catch {
+    inputStream.value = null;
+  }
+}
+
+watch(() => store.selectedInputDeviceId, refreshInputStream, { immediate: true });
+onUnmounted(() => inputStream.value?.getTracks().forEach((t) => t.stop()));
 
 /** Same seam useWaveformSlot uses internally — resolve buffer/rate/selection for
  * whichever target this instance is showing. */

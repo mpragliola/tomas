@@ -32,6 +32,7 @@
         <div class="main-lower">
           <!-- Left panel: Controls & Recording -->
           <aside class="panel panel-input panel-side-bg">
+            <DevicePicker />
           </aside>
 
           <!-- Center: Spectrum visualization -->
@@ -72,6 +73,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import FileUpload from './components/FileUpload.vue';
+import DevicePicker from './components/DevicePicker.vue';
 import SpectrumViewer from './components/SpectrumViewer.vue';
 import ImpulseResponseDisplay from './components/ImpulseResponseDisplay.vue';
 import PlaybackPanel from './components/PlaybackPanel.vue';

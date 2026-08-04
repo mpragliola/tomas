@@ -90,6 +90,10 @@ export const useAnalysisStore = defineStore('analysis', () => {
    * button and disables every other Record button while it's non-null. 'A', or a specific
    * reference tab (any tab, empty or already filled, can be re-recorded into). */
   const recordingTarget = ref<RecordTarget | null>(null);
+  /** DevicePicker.vue writes these; WaveformEditor.vue reads them to set the selected
+   * device's MediaStream and channel on its own <Waver> before the user presses Record. */
+  const selectedInputDeviceId = ref('');
+  const selectedChannelIndex = ref(0);
   let audioContext: AudioContext | null = null;
   let convolverNode: ConvolverNode | null = null;
   let gainNode: GainNode | null = null;
@@ -1402,6 +1406,8 @@ export const useAnalysisStore = defineStore('analysis', () => {
     isAutoComputing,
     lastError,
     recordingTarget,
+    selectedInputDeviceId,
+    selectedChannelIndex,
     // Actions
     loadFile,
     finishRecordingIntoA,

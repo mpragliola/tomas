@@ -38,31 +38,11 @@
         <p class="loading-text">Loading...</p>
       </div>
 
-      <div v-else-if="isRecordingHere" class="empty-state">
-        <div class="buttons-row">
-          <button type="button" class="action-button stop" @click="emit('stop-record')">
-            <Icon name="square" size="16" />
-            Stop
-          </button>
-        </div>
-        <p class="recording-hint">Recording…</p>
-      </div>
-
       <div v-else-if="!hasAudio" class="empty-state">
         <div class="buttons-row">
           <button type="button" class="action-button" @click="input?.click()">
             <Icon name="download" size="16" />
             Load File
-          </button>
-          <button
-            type="button"
-            class="action-button record"
-            :disabled="recordingElsewhere"
-            :title="recordingElsewhere ? 'Another slot is recording' : 'Record into this slot'"
-            @click="emit('record')"
-          >
-            <Icon name="mic" size="16" />
-            Record
           </button>
         </div>
       </div>
@@ -90,8 +70,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'file-loaded': [file: File];
-  record: [];
-  'stop-record': [];
 }>();
 
 const store = useAnalysisStore();
@@ -123,10 +101,6 @@ const nameHead = computed(() =>
 const nameTail = computed(() =>
   sourceName.value.length > TAIL_CHARS + 4 ? sourceName.value.slice(-TAIL_CHARS) : '',
 );
-
-// Stop lives here, in place of Record — the recording panel is below the fold in the sidebar
-const isRecordingHere = computed(() => store.recordingTarget === 'A');
-const recordingElsewhere = computed(() => store.recordingTarget !== null && !isRecordingHere.value);
 
 const showWaveform = computed(() => hasAudio.value && !loading.value);
 
@@ -247,24 +221,6 @@ $spinner-size: 20px;
     cursor: not-allowed;
     filter: none;
   }
-
-  &.record { background-color: var(--color-error); }
-
-  &.stop {
-    background-color: var(--color-error);
-    animation: pulse-record 1s infinite;
-  }
-}
-
-@keyframes pulse-record {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.65; }
-}
-
-.recording-hint {
-  margin: 0;
-  font-size: var(--font-size-label);
-  color: var(--color-text-secondary);
 }
 
 .loading-state {
