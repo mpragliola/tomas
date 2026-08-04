@@ -54,6 +54,7 @@ test.describe('playback panel', () => {
     await page.locator('input[type="file"]').nth(0).setInputFiles(PINK_NOISE);
 
     const playButton = page.locator('button.btn-play');
+    await expect(playButton).toContainText('Play');
     await page.keyboard.press('Space');
     await expect(playButton).toHaveClass(/playing/);
 
