@@ -1,25 +1,43 @@
 <template>
   <!-- Stays mounted (v-show) so the waver ref is always valid -->
   <div v-show="active" class="loaded-state" @pointerdown="dragging = true">
-    <Waver
-      ref="waverRef"
-      :height="96"
-      :theme="theme"
-      :view-mode="view"
-      show-zero-line
-      show-minimap
-      load-button="hidden"
-      :record-button="recordButtonState"
-      :input-stream="inputStream"
-      :channel-index="store.selectedChannelIndex"
-      class="waveform-host"
-      @selectionchange="onSelectionChange"
-      @cursorchange="onCursorChange"
-      @zoomchange="onZoomChange"
-      @recordstart="onRecordStart"
-      @recordstop="onRecordStop"
-      @recorderror="onRecordError"
-    />
+    <div class="waveform-host-wrap">
+      <Waver
+        ref="waverRef"
+        :height="96"
+        :theme="theme"
+        :view-mode="view"
+        show-zero-line
+        show-minimap
+        load-button="hidden"
+        :record-button="recordButtonState"
+        :input-stream="inputStream"
+        :channel-index="store.selectedChannelIndex"
+        class="waveform-host"
+        @selectionchange="onSelectionChange"
+        @cursorchange="onCursorChange"
+        @zoomchange="onZoomChange"
+        @recordstart="onRecordStart"
+        @recordstop="onRecordStop"
+        @recorderror="onRecordError"
+      />
+
+      <!-- Tomas's own Load trigger, laid over waver's empty-overlay position. waver's own
+           Load button stays `load-button="hidden"` (see this file's `<script>` for why:
+           its internal file input decodes via `decodeAudioData`/`loadAudioBuffer` with no
+           success event to hook, only `loaderror` — so it can never populate the store's
+           `channels` array the FFT/IR pipeline needs). This button visually replaces it in
+           the same spot, using the same file-picker flow AudioSlot/ReferenceSlot already
+           had. Hidden while a take is recording so it doesn't float over waver's own
+           recording bar (unreachable before this task, since the whole host was
+           display:none until audio existed). -->
+      <div v-if="!hasAudio && !isRecordingThis" class="load-overlay">
+        <button type="button" class="load-overlay-btn" @click="emit('loadClick')">
+          <Icon name="download" size="16" />
+          Load File
+        </button>
+      </div>
+    </div>
 
     <div class="waveform-footer">
       <span class="duration">{{ durationLabel }}</span>
@@ -87,6 +105,10 @@ const emit = defineEmits<{
    * resolved by the caller (AudioSlot.vue / ReferenceSlot.vue), not baked in here. */
   clear: [];
   status: [message: string, durationMs: number];
+  /** Tomas's own Load button (overlaid in waver's empty-overlay position) was clicked —
+   * the caller owns the actual file input (drag-and-drop needs it wired at the
+   * `.upload-area` level regardless), so this just asks it to open its picker. */
+  loadClick: [];
 }>();
 
 const store = useAnalysisStore();
@@ -298,6 +320,17 @@ function resolveTarget() {
   };
 }
 
+/** Drives the overlaid Load button — same "is there audio for this target" question
+ * AudioSlot/ReferenceSlot's own `hasAudio`/`hasAnyReference` asked before this task,
+ * asked here instead now that the button lives inside this component. */
+const hasAudio = computed(() => resolveTarget().buffer.length > 0);
+
+/** Hides the Load overlay while this instance is the one actively recording, so it
+ * doesn't float over waver's own recording bar (unreachable before this task — the
+ * whole host was display:none until audio existed, so a recording starting from
+ * `hasAudio === false` never rendered anything underneath it). */
+const isRecordingThis = computed(() => sameTarget(props.target, store.recordingTarget));
+
 const durationLabel = computed(() => {
   const { buffer, sampleRate } = resolveTarget();
   if (buffer.length === 0) return '0.00s';
@@ -340,10 +373,52 @@ $icon-btn-size: 28px;
   flex: 1;
 }
 
+.waveform-host-wrap {
+  position: relative;
+}
+
 .waveform-host {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   overflow: hidden;
+}
+
+/* Occupies the same visual area as waver's own empty-overlay (load-button="hidden" hides
+   that one, leaving only its Record button centered there) — positioned over
+   .waveform-host rather than .loaded-state as a whole so it's over the canvas, not the
+   footer/tools below it. Anchored to the bottom rather than dead-center: waver centers
+   its own Record button in the middle of that same inset:0 box, and stacking Tomas's own
+   button directly on top of it (both centered) would visually overlap and steal its
+   clicks — this keeps both independently reachable without needing to know the pixel
+   width of waver's internally-rendered button (a closed implementation detail) to offset
+   sideways instead. */
+.load-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 10px;
+  pointer-events: none;
+}
+
+.load-overlay-btn {
+  pointer-events: auto;
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+  border: none;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all $transition-fast;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  &:hover { filter: brightness(1.1); }
 }
 
 .waveform-footer {

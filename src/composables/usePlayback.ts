@@ -23,8 +23,21 @@ export function usePlayback() {
   let startToken = 0;
 
   const hasAudio = computed(() => store.audioBufferA.length > 0);
-  // A reference tab exists — not tied to which one happens to be active.
-  const hasReference = computed(() => store.referenceOrder.length > 0);
+  /**
+   * The *active* reference tab has audio to play — not just "a reference tab exists
+   * somewhere." Used to gate the B button and the reference/original mode fallback below,
+   * both of which act on `store.activeReferenceId` specifically (see `store.playback`'s
+   * call site), so "any tab has audio" would leave B looking enabled while the active tab
+   * (e.g. a "+"-created or auto-seeded placeholder) has nothing to actually play.
+   * Previously equivalent to "a reference tab exists" back when the only way to have one
+   * was to already have loaded a file into it — ReferenceSlot.vue's zero-reference
+   * auto-seed (see that file) made an audio-less active tab a common, no-longer-transient
+   * state, so this now checks the same way `hasIR` below already does.
+   */
+  const hasReference = computed(() => {
+    const id = store.activeReferenceId;
+    return !!id && store.references[id]?.assetId != null;
+  });
   const hasIR = computed(() => {
     const id = store.activeReferenceId;
     return !!id && !!store.references[id]?.ir;

@@ -72,33 +72,12 @@
         :active="showWaveform"
         @clear="onClearActive"
         @status="setStatus"
+        @load-click="input?.click()"
       />
 
       <div v-if="loading" class="loading-state">
         <div class="spinner"></div>
         <p class="loading-text">Loading...</p>
-      </div>
-
-      <!-- The active tab exists (a "+"-created placeholder, or one whose take/file was
-           removed) but has no audio yet — same Load File button AudioSlot shows before A
-           has anything loaded. -->
-      <div v-else-if="activeIsEmpty" class="empty-state">
-        <div class="buttons-row">
-          <button type="button" class="action-button" @click="input?.click()">
-            <Icon name="download" size="16" />
-            Load File
-          </button>
-        </div>
-      </div>
-
-      <!-- No reference tab exists at all yet. -->
-      <div v-else-if="!hasAnyReference" class="empty-state">
-        <div class="buttons-row">
-          <button type="button" class="action-button" @click="input?.click()">
-            <Icon name="download" size="16" />
-            Load File
-          </button>
-        </div>
       </div>
     </div>
 
@@ -109,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import Icon from '../Icon.vue';
 import TooltipIcon from '../TooltipIcon.vue';
 import WaveformEditor from './WaveformEditor.vue';
@@ -118,6 +97,7 @@ import { useAnalysisStore } from '../../stores/analysisStore';
 import { useReferenceFileLoader } from '../../composables/useReferenceFileLoader';
 import { useStatusMessage } from '../../composables/useStatusMessage';
 import type { WaveformTarget } from '../../composables/useWaveformSlot';
+import { isSupportedAudioFile } from '../../services/audio/audioLoader';
 
 defineProps<{
   title: string;
@@ -170,7 +150,28 @@ const activeTarget = computed<WaveformTarget | null>(() =>
   store.activeReferenceId ? { referenceId: store.activeReferenceId } : null,
 );
 
-const showWaveform = computed(() => hasAnyReference.value && !loading.value && !activeIsEmpty.value);
+const showWaveform = computed(() => !loading.value);
+
+/**
+ * Zero-reference chicken-and-egg: `WaveformEditor` needs a concrete `WaveformTarget`
+ * (`activeTarget` above is null with no reference tab to point it at), and before this
+ * task the only way to create a first tab was ReferenceTabBar's "+" — which itself only
+ * renders once `showTabs` (2+ references) is true. Nothing could ever create the first
+ * one. Seeds exactly the same empty-tab state a manual "+" click already produces,
+ * whenever the count drops to zero — not just on initial mount, since the sole
+ * auto-seeded (empty) tab's own "Remove file" button (WaveformEditor's cancel-btn, shown
+ * even with no audio loaded) can delete it right back to zero, and nothing else would
+ * ever re-seed it after that. `immediate: true` covers the initial mount case too, so a
+ * separate onMounted isn't needed. Guarded the same way `addEmptyReference()` guards
+ * itself (MAX_REFERENCES, logged there) — this only ever calls it from exactly zero.
+ */
+watch(
+  () => store.referenceOrder.length,
+  (count) => {
+    if (count === 0) store.addEmptyReference();
+  },
+  { immediate: true },
+);
 
 async function onFileSelect(event: Event): Promise<void> {
   const files = (event.target as HTMLInputElement).files;
@@ -188,7 +189,23 @@ async function onFileSelect(event: Event): Promise<void> {
 }
 
 async function onDrop(event: DragEvent): Promise<void> {
-  await handleDrop(event);
+  // Same "fill the active empty tab instead of opening a new one" special-case
+  // onFileSelect already applies — without it, dropping a file while the auto-seeded
+  // empty tab is active (the common case now that a reference slot always starts with
+  // one, per the watch above) would silently add a 2nd, inactive tab instead of ever
+  // showing the dropped audio, since addReference() only activates a *new* tab when
+  // no tab was active yet (see analysisStore.addReference), and one already is here.
+  const files = event.dataTransfer?.files;
+  if (activeIsEmpty.value && store.activeReferenceId && files && files.length > 0) {
+    dragActive.value = false;
+    const supported = Array.from(files).filter((f) => isSupportedAudioFile(f.name));
+    if (supported.length === 0) return;
+    const [first, ...rest] = supported;
+    await loadFileInto(store.activeReferenceId, first);
+    for (const f of rest) await loadFile(f);
+  } else {
+    await handleDrop(event);
+  }
 }
 
 function onClone(id: string): void {
@@ -316,48 +333,6 @@ $spinner-size: 20px;
     background-color: color-mix(in srgb, var(--color-accent) 3%, transparent);
     cursor: default;
     padding: 8px;
-  }
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex: 1;
-}
-
-.buttons-row {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-  justify-content: center;
-}
-
-.action-button {
-  background-color: var(--color-accent);
-  color: var(--color-accent-text);
-  border: none;
-  padding: 8px 12px;
-  border-radius: var(--radius-lg);
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all $transition-fast;
-  flex: 1;
-  max-width: 150px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-
-  &:hover { filter: brightness(1.1); }
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    filter: none;
   }
 }
 

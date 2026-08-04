@@ -31,20 +31,12 @@
         :active="showWaveform"
         @clear="clearSlot"
         @status="setStatus"
+        @load-click="input?.click()"
       />
 
       <div v-if="loading" class="loading-state">
         <div class="spinner"></div>
         <p class="loading-text">Loading...</p>
-      </div>
-
-      <div v-else-if="!hasAudio" class="empty-state">
-        <div class="buttons-row">
-          <button type="button" class="action-button" @click="input?.click()">
-            <Icon name="download" size="16" />
-            Load File
-          </button>
-        </div>
       </div>
     </div>
 
@@ -56,7 +48,6 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import Icon from '../Icon.vue';
 import TooltipIcon from '../TooltipIcon.vue';
 import WaveformEditor from './WaveformEditor.vue';
 import { useAnalysisStore } from '../../stores/analysisStore';
@@ -102,7 +93,7 @@ const nameTail = computed(() =>
   sourceName.value.length > TAIL_CHARS + 4 ? sourceName.value.slice(-TAIL_CHARS) : '',
 );
 
-const showWaveform = computed(() => hasAudio.value && !loading.value);
+const showWaveform = computed(() => !loading.value);
 
 function clearSlot(): void {
   clear();
@@ -178,48 +169,6 @@ $spinner-size: 20px;
     background-color: color-mix(in srgb, var(--color-accent) 3%, transparent);
     cursor: default;
     padding: 8px;
-  }
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex: 1;
-}
-
-.buttons-row {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-  justify-content: center;
-}
-
-.action-button {
-  background-color: var(--color-accent);
-  color: var(--color-accent-text);
-  border: none;
-  padding: 8px 12px;
-  border-radius: var(--radius-lg);
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all $transition-fast;
-  flex: 1;
-  max-width: 150px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-
-  &:hover { filter: brightness(1.1); }
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    filter: none;
   }
 }
 
