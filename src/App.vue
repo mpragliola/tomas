@@ -26,13 +26,12 @@
       <div class="main-left" :class="isSpectrumExpanded ? 'spectrum-expanded' : 'spectrum-minimized'">
         <!-- Top: the two waves, spanning sidebar + spectrum width -->
         <div class="panel panel-waves panel-side-bg">
-          <FileUpload @file-loaded="onFileLoaded" @record="onRecord($event)" @stop-record="onStopRecord" />
+          <FileUpload @file-loaded="onFileLoaded" />
         </div>
 
         <div class="main-lower">
           <!-- Left panel: Controls & Recording -->
           <aside class="panel panel-input panel-side-bg">
-            <RecordingPanel ref="recordingPanel" @recorded="onRecorded" />
           </aside>
 
           <!-- Center: Spectrum visualization -->
@@ -73,7 +72,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import FileUpload from './components/FileUpload.vue';
-import RecordingPanel from './components/RecordingPanel.vue';
 import SpectrumViewer from './components/SpectrumViewer.vue';
 import ImpulseResponseDisplay from './components/ImpulseResponseDisplay.vue';
 import PlaybackPanel from './components/PlaybackPanel.vue';
@@ -81,7 +79,6 @@ import HelpModal from './components/HelpModal.vue';
 import Icon from './components/Icon.vue';
 import { logger } from './services/logging';
 import { useAnalysisStore } from './stores/analysisStore';
-import type { RecordTarget } from './types/audio';
 
 type Theme = 'light' | 'dark' | 'sepia' | 'earth' | 'retro';
 
@@ -93,7 +90,6 @@ function isValidTheme(value: string | null): value is Theme {
 
 const store = useAnalysisStore();
 const showHelp = ref(false);
-const recordingPanel = ref<InstanceType<typeof RecordingPanel>>();
 const currentTheme = ref<Theme>('dark');
 const isSpectrumExpanded = ref(false);
 
@@ -166,20 +162,6 @@ function cycleTheme(): void {
 
 function onFileLoaded(e: { target: 'A' | 'reference'; file: File }): void {
   logger.info('App', 'File loaded event received', { target: e.target });
-}
-
-async function onRecord(target: RecordTarget): Promise<void> {
-  logger.info('App', 'Record button clicked', { target: target === 'A' ? 'A' : target.referenceId });
-  await recordingPanel.value?.startRecording(target);
-}
-
-async function onStopRecord(): Promise<void> {
-  logger.info('App', 'Stop button clicked');
-  await recordingPanel.value?.stopRecording();
-}
-
-function onRecorded(e: { samples: number }): void {
-  logger.info('App', 'Recording completed', { samples: e.samples });
 }
 
 function onIRDerived(e: any): void {
