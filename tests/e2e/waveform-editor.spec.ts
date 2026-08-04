@@ -68,10 +68,11 @@ test.describe('waveform editor', () => {
     // WaveformEditor's host (waver + its own empty-overlay) stays visible/mounted after a
     // clear — only its audio content resets — so waver's own Load/Record buttons stay
     // reachable for a next take. `.loaded-state` no longer goes away; Tomas's own Load
-    // trigger (waver's empty-overlay position) reappearing is the actual "back to empty"
-    // signal now, scoped to Wave 1's own upload area since the reference slot's
-    // auto-seeded empty tab shows the identical button.
-    const waveOneLoadBtn = page.locator('.upload-area').first().locator('.load-overlay-btn');
+    // trigger (rendered below the waveform host, not overlaid on top of it — see
+    // WaveformEditor.vue) reappearing is the actual "back to empty" signal now, scoped
+    // to Wave 1's own upload area since the reference slot's auto-seeded empty tab
+    // shows the identical button.
+    const waveOneLoadBtn = page.locator('.upload-area').first().locator('.load-trigger-btn');
     await expect(waveOneLoadBtn).toBeVisible();
   });
 });

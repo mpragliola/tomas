@@ -21,22 +21,31 @@
         @recordstop="onRecordStop"
         @recorderror="onRecordError"
       />
+    </div>
 
-      <!-- Tomas's own Load trigger, laid over waver's empty-overlay position. waver's own
-           Load button stays `load-button="hidden"` (see this file's `<script>` for why:
-           its internal file input decodes via `decodeAudioData`/`loadAudioBuffer` with no
-           success event to hook, only `loaderror` — so it can never populate the store's
-           `channels` array the FFT/IR pipeline needs). This button visually replaces it in
-           the same spot, using the same file-picker flow AudioSlot/ReferenceSlot already
-           had. Hidden while a take is recording so it doesn't float over waver's own
-           recording bar (unreachable before this task, since the whole host was
-           display:none until audio existed). -->
-      <div v-if="!hasAudio && !isRecordingThis" class="load-overlay">
-        <button type="button" class="load-overlay-btn" @click="emit('loadClick')">
-          <Icon name="download" size="16" />
-          Load File
-        </button>
-      </div>
+    <!-- Tomas's own Load trigger. waver's own Load button stays `load-button="hidden"`
+         (see this file's `<script>` for why: its internal file input decodes via
+         `decodeAudioData`/`loadAudioBuffer` with no success event to hook, only
+         `loaderror` — so it can never populate the store's `channels` array the FFT/IR
+         pipeline needs). Deliberately NOT overlaid on top of `.waveform-host` — an
+         earlier version absolutely-positioned this inside that box, anchored to clear
+         waver's own centered empty-overlay content by a fixed pixel margin, but that
+         margin was derived from one specific `:height`/`minimap-height-ratio`
+         combination and silently broke (real, clickable overlap with waver's Record
+         button, confirmed by sampling points across its bounding box rather than just
+         the box center) the moment that geometry shifted. Living in normal flow below
+         the host instead means it structurally cannot overlap anything inside
+         `.waveform-host`, regardless of waver's internal ruler/minimap/height math —
+         no pixel offset to keep in sync with waver's own layout at all. Same
+         file-picker flow AudioSlot/ReferenceSlot already had. Hidden while a take is
+         recording so it doesn't sit directly under waver's own recording bar
+         (unreachable before this task, since the whole host was display:none until
+         audio existed). -->
+    <div v-if="!hasAudio && !isRecordingThis" class="load-trigger">
+      <button type="button" class="load-trigger-btn" @click="emit('loadClick')">
+        <Icon name="download" size="16" />
+        Load File
+      </button>
     </div>
 
     <div class="waveform-footer">
@@ -105,9 +114,9 @@ const emit = defineEmits<{
    * resolved by the caller (AudioSlot.vue / ReferenceSlot.vue), not baked in here. */
   clear: [];
   status: [message: string, durationMs: number];
-  /** Tomas's own Load button (overlaid in waver's empty-overlay position) was clicked —
-   * the caller owns the actual file input (drag-and-drop needs it wired at the
-   * `.upload-area` level regardless), so this just asks it to open its picker. */
+  /** Tomas's own Load button (rendered below the waveform host, see the template) was
+   * clicked — the caller owns the actual file input (drag-and-drop needs it wired at
+   * the `.upload-area` level regardless), so this just asks it to open its picker. */
   loadClick: [];
 }>();
 
@@ -320,15 +329,15 @@ function resolveTarget() {
   };
 }
 
-/** Drives the overlaid Load button — same "is there audio for this target" question
- * AudioSlot/ReferenceSlot's own `hasAudio`/`hasAnyReference` asked before this task,
- * asked here instead now that the button lives inside this component. */
+/** Drives the Load trigger below the waveform host — same "is there audio for this
+ * target" question AudioSlot/ReferenceSlot's own `hasAudio`/`hasAnyReference` asked
+ * before this task, asked here instead now that the button lives inside this component. */
 const hasAudio = computed(() => resolveTarget().buffer.length > 0);
 
-/** Hides the Load overlay while this instance is the one actively recording, so it
- * doesn't float over waver's own recording bar (unreachable before this task — the
- * whole host was display:none until audio existed, so a recording starting from
- * `hasAudio === false` never rendered anything underneath it). */
+/** Hides the Load trigger while this instance is the one actively recording — mostly
+ * to avoid showing two calls to action (Stop, on waver's own recording bar, and Load)
+ * at once; it's in normal flow below the host so it was never able to overlap waver's
+ * recording bar the way the button itself could before it moved out of the host. */
 const isRecordingThis = computed(() => sameTarget(props.target, store.recordingTarget));
 
 const durationLabel = computed(() => {
@@ -373,38 +382,24 @@ $icon-btn-size: 28px;
   flex: 1;
 }
 
-.waveform-host-wrap {
-  position: relative;
-}
-
 .waveform-host {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
-/* Occupies the same visual area as waver's own empty-overlay (load-button="hidden" hides
-   that one, leaving only its Record button centered there) — positioned over
-   .waveform-host rather than .loaded-state as a whole so it's over the canvas, not the
-   footer/tools below it. Anchored to the bottom rather than dead-center: waver centers
-   its own Record button in the middle of that same inset:0 box, and stacking Tomas's own
-   button directly on top of it (both centered) would visually overlap and steal its
-   clicks — this keeps both independently reachable without needing to know the pixel
-   width of waver's internally-rendered button (a closed implementation detail) to offset
-   sideways instead. */
-.load-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
+/* Lives in normal document flow below .waveform-host, not absolutely positioned inside
+   it — see the template comment above for why. Because this is a fully separate box,
+   it structurally cannot overlap anything waver renders inside .waveform-host (its own
+   Record button, recording bar, etc.) regardless of waver's internal ruler/minimap
+   proportions or `:height` — there is no shared coordinate space to keep in sync. */
+.load-trigger {
   display: flex;
-  align-items: flex-end;
   justify-content: center;
-  padding-bottom: 10px;
-  pointer-events: none;
+  padding: 6px 0;
 }
 
-.load-overlay-btn {
-  pointer-events: auto;
+.load-trigger-btn {
   background-color: var(--color-accent);
   color: var(--color-accent-text);
   border: none;
