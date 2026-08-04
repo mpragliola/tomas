@@ -9,11 +9,14 @@
       show-zero-line
       show-minimap
       load-button="hidden"
-      record-button="enabled"
+      :record-button="recordButtonState"
       class="waveform-host"
       @selectionchange="onSelectionChange"
       @cursorchange="onCursorChange"
       @zoomchange="onZoomChange"
+      @recordstart="onRecordStart"
+      @recordstop="onRecordStop"
+      @recorderror="onRecordError"
     />
 
     <div class="waveform-footer">
@@ -121,6 +124,39 @@ const { theme, zoom, setZoom, resetView, onSelectionChange, onCursorChange, onZo
     onSelectionChange: spectrum.schedule,
   },
 );
+
+const recordButtonState = computed<'enabled' | 'disabled'>(() => {
+  const lockedTo = store.recordingTarget;
+  if (lockedTo === null) return 'enabled';
+  const isThisSlot =
+    props.target === 'A' ? lockedTo === 'A' : lockedTo !== 'A' && lockedTo.referenceId === props.target.referenceId;
+  return isThisSlot ? 'enabled' : 'disabled';
+});
+
+function onRecordStart(): void {
+  store.recordingTarget = props.target;
+}
+
+async function onRecordStop(): Promise<void> {
+  const el = waverRef.value;
+  store.recordingTarget = null;
+  if (!el) return;
+
+  const samples = el.getSamples();
+  const sampleRate = el.getSampleRate();
+  if (samples.length === 0) return;
+
+  if (props.target === 'A') {
+    await store.finishRecordingIntoA(samples, sampleRate);
+  } else {
+    await store.finishRecordingIntoReference(props.target.referenceId, samples, sampleRate);
+  }
+}
+
+function onRecordError(error: Error): void {
+  store.recordingTarget = null;
+  emit('status', `Recording failed: ${error.message}`, 3000);
+}
 
 /** Same seam useWaveformSlot uses internally — resolve buffer/rate/selection for
  * whichever target this instance is showing. */
