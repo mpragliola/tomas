@@ -19,7 +19,7 @@
     "freqplot": "github:mpragliola/freqplot#5594619734e6aff7dffbef574001c853c55b9bad",
     "pinia": "^4.0.2",
     "vue": "^3.3.0",
-    "waver": "github:mpragliola/waver#8d54dae8237ff2afcff3f7f881171245d49798f0"
+    "waver": "github:mpragliola/waver#3039ce0b8dc5845e8c14ace1577c13e761cbe35b"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.0",
