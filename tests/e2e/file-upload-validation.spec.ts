@@ -81,7 +81,17 @@ test.describe('file upload validation', () => {
     await waveA.setInputFiles(SINE_1K);
     await expect(page.locator('.source-name').first()).toContainText('sine-1k.wav');
 
-    await page.locator('.cancel-btn').first().click();
+    // Click waver's cancel button via shadow DOM (Playwright can't pierce shadow DOM with locator.click)
+    await page.locator('wave-r').first().evaluate(() => {
+      const btn = document.querySelector('wave-r')?.shadowRoot?.querySelector('[aria-label="Cancel"]');
+      (btn as HTMLButtonElement)?.click();
+    });
+    // waver shows a confirmation dialog; click the "Clear" button in it
+    await page.locator('wave-r').first().evaluate(() => {
+      const clearBtn = Array.from(document.querySelector('wave-r')?.shadowRoot?.querySelectorAll('button') || [])
+        .find((b) => (b as HTMLButtonElement).textContent?.includes('Clear'));
+      (clearBtn as HTMLButtonElement)?.click();
+    });
     // Scoped to Wave 1's own .section — the reference slot's auto-seeded empty tab keeps
     // its own `.source-name` ("Empty reference") up throughout, unrelated to A's file.
     await expect(page.locator('.section').first().locator('.source-name')).toHaveCount(0);

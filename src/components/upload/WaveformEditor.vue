@@ -26,7 +26,7 @@
         @monitorstop="onMonitorStop"
         @loadsuccess="onLoadSuccess"
         @loaderror="onLoadError"
-        @reset="clearAndReset"
+        @reset="onWaverReset"
       />
     </div>
 
@@ -290,6 +290,10 @@ function validateFile(file: File): string | null {
     return `File too large. Max 100MB, got ${(file.size / 1024 / 1024).toFixed(1)}MB`;
   }
   return null;
+}
+
+function onWaverReset(): void {
+  emit('clear');
 }
 
 function clearAndReset(): void {

@@ -14,7 +14,7 @@ export default defineConfig({
   fullyParallel: true,
   // Capped locally: many concurrent Chromium instances (each with WebAudio/WaveSurfer)
   // reliably crashed the renderer (STATUS_STACK_BUFFER_OVERRUN) on Windows under full parallelism.
-  workers: process.env.CI ? undefined : 2,
+  workers: process.env.CI ? undefined : 4,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: 'list',

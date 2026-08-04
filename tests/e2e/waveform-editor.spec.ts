@@ -66,7 +66,17 @@ test.describe('waveform editor', () => {
   });
 
   test('Remove file clears the waveform back to the empty state', async ({ page }) => {
-    await page.locator('.cancel-btn').first().click();
+    // Click waver's cancel button via shadow DOM (Playwright can't pierce shadow DOM with locator.click)
+    await page.locator('wave-r').first().evaluate(() => {
+      const btn = document.querySelector('wave-r')?.shadowRoot?.querySelector('[aria-label="Cancel"]');
+      (btn as HTMLButtonElement)?.click();
+    });
+    // waver shows a confirmation dialog; click the "Clear" button in it
+    await page.locator('wave-r').first().evaluate(() => {
+      const clearBtn = Array.from(document.querySelector('wave-r')?.shadowRoot?.querySelectorAll('button') || [])
+        .find((b) => (b as HTMLButtonElement).textContent?.includes('Clear'));
+      (clearBtn as HTMLButtonElement)?.click();
+    });
     // WaveformEditor's host (waver + its own empty-overlay) stays visible/mounted after a
     // clear — only its audio content resets — so waver's own Load/Record buttons
     // reappearing (its empty-overlay) is the "back to empty" signal now, scoped to Wave
