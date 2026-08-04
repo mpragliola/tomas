@@ -3,92 +3,63 @@ import { test, expect } from '@playwright/test';
 // Runs only under the `chromium-mic` project (see playwright.config.ts), which launches
 // Chromium with a fake audio input device — no real mic/OS permission dialog needed.
 //
-// Recording is stopped via the slot's own Stop button (`.action-button.stop`) — the
-// RecordingPanel no longer renders a separate inline Stop button.
+// Recording is now waver's own built-in Record/Stop button (rendered in its shadow DOM),
+// not a bespoke RecordingPanel — Playwright locators pierce open shadow roots automatically.
 
-test.describe('recording panel', () => {
+test.describe('recording via waver\'s native Record button', () => {
   test('Record on Wave 1 shows Stop, disables Record on the reference slot, and returns to idle', async ({ page }) => {
     await page.goto('/');
 
-    const recordButtons = page.locator('.action-button.record');
-    await expect(recordButtons).toHaveCount(2); // Wave 1 + reference
+    const waves = page.locator('wave-r');
+    await expect(waves).toHaveCount(2); // Wave 1 + reference
 
-    await recordButtons.nth(0).click();
+    const waveOneRecord = waves.nth(0).locator('.waver-action-btn--record');
+    await waveOneRecord.click();
 
-    const stopBtn = page.locator('.action-button.stop').first();
-    await expect(stopBtn).toBeVisible();
-    await expect(page.locator('.recording-hint')).toContainText('Recording');
+    const waveOneStop = waves.nth(0).locator('.waver-action-btn--stop');
+    await expect(waveOneStop).toBeVisible();
 
-    // The other slot's Record button must be disabled while Wave 1 is recording
-    const otherRecordBtn = page.locator('.action-button.record');
-    await expect(otherRecordBtn).toBeDisabled();
-    await expect(otherRecordBtn).toHaveAttribute('title', 'Another slot is recording');
+    // The reference slot's Record button must be disabled while Wave 1 is recording
+    const referenceRecord = waves.nth(1).locator('.waver-action-btn--record');
+    await expect(referenceRecord).toBeDisabled();
 
     await page.waitForTimeout(1500); // let the fake device produce a real take
 
-    await stopBtn.click();
-    await expect(page.locator('.action-button.stop')).toBeHidden();
-    await expect(page.locator('.action-button.record').first()).toBeEnabled();
+    await waveOneStop.click();
+    await expect(waveOneStop).toBeHidden();
+    await expect(referenceRecord).toBeEnabled();
   });
 
-  test('too-short take on Wave 1 surfaces the inline hint', async ({ page }) => {
+  test('recording into a reference tab does not disturb Wave 1', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.action-button.record').first().click();
-    const stopBtn = page.locator('.action-button.stop').first();
-    await expect(stopBtn).toBeVisible();
+    const waves = page.locator('wave-r');
 
-    // Stop almost immediately — below MIN_ANALYSIS_SECONDS
-    await stopBtn.click();
+    const referenceRecord = waves.nth(1).locator('.waver-action-btn--record');
+    await referenceRecord.click();
 
-    await expect(page.locator('.recording-panel .status-message')).toContainText('Take too short to analyse');
+    const referenceStop = waves.nth(1).locator('.waver-action-btn--stop');
+    await expect(referenceStop).toBeVisible();
+
+    const waveOneRecord = waves.nth(0).locator('.waver-action-btn--record');
+    await expect(waveOneRecord).toBeDisabled();
+
+    await page.waitForTimeout(1500);
+    await referenceStop.click();
+    await expect(referenceStop).toBeHidden();
   });
 
-  test('monitor toggle activates and is disabled while recording', async ({ page }) => {
-    await page.goto('/');
-    const monitorBtn = page.locator('.btn-monitor');
-    await expect(monitorBtn).toContainText('Monitor');
-    await monitorBtn.click();
-    await expect(monitorBtn).toHaveClass(/active/);
-    await expect(monitorBtn).toContainText('Stop monitor');
-
-    const stopBtn = page.locator('.action-button.stop').first();
-    await page.locator('.action-button.record').first().click();
-    await expect(stopBtn).toBeVisible();
-    await expect(monitorBtn).toBeDisabled();
-
-    await stopBtn.click();
-  });
-
-  test('auto-trigger checkbox reveals threshold slider and arms recording', async ({ page }) => {
-    await page.goto('/');
-    const checkbox = page.locator('.auto-trigger-header input[type="checkbox"]');
-    await expect(page.locator('.auto-trigger-controls')).toHaveCount(0);
-
-    await checkbox.check();
-    await expect(page.locator('.auto-trigger-controls')).toBeVisible();
-
-    const slider = page.locator('.auto-trigger-controls .slider');
-    await slider.fill('-30');
-    await slider.dispatchEvent('change');
-    await expect(page.locator('.slider-value')).toContainText('-30dB');
-
-    await page.locator('.action-button.record').first().click();
-    await expect(page.locator('.armed-message')).toContainText('Armed — waiting for a peak above -30dB');
-
-    await page.locator('.action-button.stop').first().click();
-  });
-
-  test('device and channel selects are disabled while recording', async ({ page }) => {
+  test('device picker is present and independent of recording state', async ({ page }) => {
     await page.goto('/');
     const dropdowns = page.locator('.device-dropdown');
+    await expect(dropdowns).toHaveCount(2); // device + channel
+
+    const waves = page.locator('wave-r');
+    await waves.nth(0).locator('.waver-action-btn--record').click();
+    await expect(waves.nth(0).locator('.waver-action-btn--stop')).toBeVisible();
+
+    // Unlike the old panel, the picker is not disabled by an in-progress recording.
     await expect(dropdowns.nth(0)).toBeEnabled();
 
-    const stopBtn = page.locator('.action-button.stop').first();
-    await page.locator('.action-button.record').first().click();
-    await expect(stopBtn).toBeVisible();
-    await expect(dropdowns.nth(0)).toBeDisabled();
-
-    await stopBtn.click();
-    await expect(dropdowns.nth(0)).toBeEnabled();
+    await waves.nth(0).locator('.waver-action-btn--stop').click();
   });
 });

@@ -69,6 +69,10 @@ export interface WaverHandle {
   setZoom: (zoom: { samplesPerPixel?: number; offsetSample?: number }, animate?: boolean) => void;
   zoomToFull: () => void;
   element: () => { clientWidth: number } | null;
+  getSamples: () => Float32Array;
+  getSampleRate: () => number;
+  isRecording: () => boolean;
+  reset: () => void;
 }
 
 export interface WaveformSlotOptions {

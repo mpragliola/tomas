@@ -31,40 +31,12 @@
         :active="showWaveform"
         @clear="clearSlot"
         @status="setStatus"
+        @load-click="input?.click()"
       />
 
       <div v-if="loading" class="loading-state">
         <div class="spinner"></div>
         <p class="loading-text">Loading...</p>
-      </div>
-
-      <div v-else-if="isRecordingHere" class="empty-state">
-        <div class="buttons-row">
-          <button type="button" class="action-button stop" @click="emit('stop-record')">
-            <Icon name="square" size="16" />
-            Stop
-          </button>
-        </div>
-        <p class="recording-hint">Recording…</p>
-      </div>
-
-      <div v-else-if="!hasAudio" class="empty-state">
-        <div class="buttons-row">
-          <button type="button" class="action-button" @click="input?.click()">
-            <Icon name="download" size="16" />
-            Load File
-          </button>
-          <button
-            type="button"
-            class="action-button record"
-            :disabled="recordingElsewhere"
-            :title="recordingElsewhere ? 'Another slot is recording' : 'Record into this slot'"
-            @click="emit('record')"
-          >
-            <Icon name="mic" size="16" />
-            Record
-          </button>
-        </div>
       </div>
     </div>
 
@@ -76,7 +48,6 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import Icon from '../Icon.vue';
 import TooltipIcon from '../TooltipIcon.vue';
 import WaveformEditor from './WaveformEditor.vue';
 import { useAnalysisStore } from '../../stores/analysisStore';
@@ -90,8 +61,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'file-loaded': [file: File];
-  record: [];
-  'stop-record': [];
 }>();
 
 const store = useAnalysisStore();
@@ -124,11 +93,7 @@ const nameTail = computed(() =>
   sourceName.value.length > TAIL_CHARS + 4 ? sourceName.value.slice(-TAIL_CHARS) : '',
 );
 
-// Stop lives here, in place of Record — the recording panel is below the fold in the sidebar
-const isRecordingHere = computed(() => store.recordingTarget === 'A');
-const recordingElsewhere = computed(() => store.recordingTarget !== null && !isRecordingHere.value);
-
-const showWaveform = computed(() => hasAudio.value && !loading.value);
+const showWaveform = computed(() => !loading.value);
 
 function clearSlot(): void {
   clear();
@@ -205,66 +170,6 @@ $spinner-size: 20px;
     cursor: default;
     padding: 8px;
   }
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex: 1;
-}
-
-.buttons-row {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-  justify-content: center;
-}
-
-.action-button {
-  background-color: var(--color-accent);
-  color: var(--color-accent-text);
-  border: none;
-  padding: 8px 12px;
-  border-radius: var(--radius-lg);
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all $transition-fast;
-  flex: 1;
-  max-width: 150px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-
-  &:hover { filter: brightness(1.1); }
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    filter: none;
-  }
-
-  &.record { background-color: var(--color-error); }
-
-  &.stop {
-    background-color: var(--color-error);
-    animation: pulse-record 1s infinite;
-  }
-}
-
-@keyframes pulse-record {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.65; }
-}
-
-.recording-hint {
-  margin: 0;
-  font-size: var(--font-size-label);
-  color: var(--color-text-secondary);
 }
 
 .loading-state {

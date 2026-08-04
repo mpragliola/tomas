@@ -1,20 +1,52 @@
 <template>
   <!-- Stays mounted (v-show) so the waver ref is always valid -->
   <div v-show="active" class="loaded-state" @pointerdown="dragging = true">
-    <Waver
-      ref="waverRef"
-      :height="96"
-      :theme="theme"
-      :view-mode="view"
-      show-zero-line
-      show-minimap
-      :show-load-button="false"
-      :show-record-button="false"
-      class="waveform-host"
-      @selectionchange="onSelectionChange"
-      @cursorchange="onCursorChange"
-      @zoomchange="onZoomChange"
-    />
+    <div class="waveform-host-wrap">
+      <Waver
+        ref="waverRef"
+        :height="96"
+        :theme="theme"
+        :view-mode="view"
+        show-zero-line
+        show-minimap
+        load-button="hidden"
+        :record-button="recordButtonState"
+        :input-stream="inputStream"
+        :channel-index="store.selectedChannelIndex"
+        class="waveform-host"
+        @selectionchange="onSelectionChange"
+        @cursorchange="onCursorChange"
+        @zoomchange="onZoomChange"
+        @recordstart="onRecordStart"
+        @recordstop="onRecordStop"
+        @recorderror="onRecordError"
+      />
+    </div>
+
+    <!-- Tomas's own Load trigger. waver's own Load button stays `load-button="hidden"`
+         (see this file's `<script>` for why: its internal file input decodes via
+         `decodeAudioData`/`loadAudioBuffer` with no success event to hook, only
+         `loaderror` — so it can never populate the store's `channels` array the FFT/IR
+         pipeline needs). Deliberately NOT overlaid on top of `.waveform-host` — an
+         earlier version absolutely-positioned this inside that box, anchored to clear
+         waver's own centered empty-overlay content by a fixed pixel margin, but that
+         margin was derived from one specific `:height`/`minimap-height-ratio`
+         combination and silently broke (real, clickable overlap with waver's Record
+         button, confirmed by sampling points across its bounding box rather than just
+         the box center) the moment that geometry shifted. Living in normal flow below
+         the host instead means it structurally cannot overlap anything inside
+         `.waveform-host`, regardless of waver's internal ruler/minimap/height math —
+         no pixel offset to keep in sync with waver's own layout at all. Same
+         file-picker flow AudioSlot/ReferenceSlot already had. Hidden while a take is
+         recording so it doesn't sit directly under waver's own recording bar
+         (unreachable before this task, since the whole host was display:none until
+         audio existed). -->
+    <div v-if="!hasAudio && !isRecordingThis" class="load-trigger">
+      <button type="button" class="load-trigger-btn" @click="emit('loadClick')">
+        <Icon name="download" size="16" />
+        Load File
+      </button>
+    </div>
 
     <div class="waveform-footer">
       <span class="duration">{{ durationLabel }}</span>
@@ -56,12 +88,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Waver } from 'waver/vue';
 import type { ViewMode } from 'waver';
 import Icon from '../Icon.vue';
 import { useAnalysisStore } from '../../stores/analysisStore';
 import { useSpectrumScheduler } from '../../composables/useSpectrumScheduler';
+import { openInputStream } from '../../services/audio/devices';
 import {
   useWaveformSlot,
   ZOOM_MIN,
@@ -81,6 +114,10 @@ const emit = defineEmits<{
    * resolved by the caller (AudioSlot.vue / ReferenceSlot.vue), not baked in here. */
   clear: [];
   status: [message: string, durationMs: number];
+  /** Tomas's own Load button (rendered below the waveform host, see the template) was
+   * clicked — the caller owns the actual file input (drag-and-drop needs it wired at
+   * the `.upload-area` level regardless), so this just asks it to open its picker. */
+  loadClick: [];
 }>();
 
 const store = useAnalysisStore();
@@ -122,6 +159,157 @@ const { theme, zoom, setZoom, resetView, onSelectionChange, onCursorChange, onZo
   },
 );
 
+/** Does `store.recordingTarget` (or a target snapshot) refer to the same slot as `target`? */
+function sameTarget(a: WaveformTarget, b: WaveformTarget | null): boolean {
+  if (b === null) return false;
+  return a === 'A' ? b === 'A' : b !== 'A' && b.referenceId === a.referenceId;
+}
+
+const recordButtonState = computed<'enabled' | 'disabled'>(() => {
+  const lockedTo = store.recordingTarget;
+  if (lockedTo === null) return 'enabled';
+  return sameTarget(props.target, lockedTo) ? 'enabled' : 'disabled';
+});
+
+/**
+ * This instance is reused across reference-tab switches (ReferenceSlot.vue swaps only the
+ * `target` prop, never remounting) and can also unmount outright (last tab removed, or
+ * navigating away). waver's `disconnectedCallback()` calls `recorderEngine?.cancel()` on
+ * teardown, which tears the recorder down silently — no `recordstop`/`recorderror` fires.
+ * Since `onRecordStop`/`onRecordError` above are the only places that ever clear
+ * `store.recordingTarget`, a mid-recording tab switch or unmount would otherwise leave the
+ * lock stuck forever (every slot's Record button permanently disabled, no recovery short of
+ * a reload).
+ *
+ * Only touches the lock when it's still this instance's own target (never someone else's
+ * recording) and this instance actually still has a live recording in progress (waver's own
+ * `isRecording()`, not just "was this target once locked").
+ */
+function isOrphanedHere(target: WaveformTarget): boolean {
+  return sameTarget(target, store.recordingTarget) && waverRef.value?.isRecording() === true;
+}
+
+/**
+ * Unmount: `onBeforeUnmount`, not `onUnmounted` — at this point the component and its
+ * `<wave-r>` element are still fully live, so `waverRef.value` is guaranteed non-null and
+ * `isRecording()` reads the pre-teardown state directly. Whether Vue nulls the template ref
+ * (or the browser has already run `disconnectedCallback()`) by the time `onUnmounted` fires
+ * isn't a contract either side promises, so this is the reliable point to check. No need to
+ * stop anything here — `disconnectedCallback()` calling `recorderEngine?.cancel()` right
+ * after this component tears down handles that; only the app-level lock needs releasing.
+ */
+onBeforeUnmount(() => {
+  if (isOrphanedHere(props.target)) store.recordingTarget = null;
+});
+
+/**
+ * Tab switch: the same `<Waver>` DOM element stays mounted (only `props.target`'s value
+ * changes), so `disconnectedCallback()` never fires and the recorder keeps running in the
+ * background against a target that's no longer displayed — `isRecording()` and the element's
+ * own recording UI would still read "recording" under the *new* tab. Left alone, a user could
+ * then hit what looks like that tab's Stop button and have the orphaned take saved into the
+ * wrong slot (`onRecordStop` reads the *current* `props.target`). `reset()` stops and discards
+ * the take instead of saving it — correct here, since switching tabs (not clicking Stop) is
+ * what ended it. Safe to clear the element's samples too: `useWaveformSlot`'s own watch on the
+ * same target change reloads the new target's audio via `loadSamples()` right after this runs
+ * — that watch is `flush: 'post'` (runs after DOM update) while this one uses the default
+ * `flush: 'pre'` (runs before), so this always resolves first and nothing is left showing the
+ * discarded recording.
+ */
+watch(
+  () => props.target,
+  (_newTarget, oldTarget) => {
+    if (oldTarget === undefined || !isOrphanedHere(oldTarget)) return;
+    store.recordingTarget = null;
+    waverRef.value?.reset();
+  },
+  { flush: 'pre' },
+);
+
+function onRecordStart(): void {
+  store.recordingTarget = props.target;
+}
+
+async function onRecordStop(): Promise<void> {
+  const el = waverRef.value;
+  store.recordingTarget = null;
+  if (!el) return;
+
+  const samples = el.getSamples();
+  const sampleRate = el.getSampleRate();
+  if (samples.length === 0) return;
+
+  if (props.target === 'A') {
+    await store.finishRecordingIntoA(samples, sampleRate);
+  } else {
+    await store.finishRecordingIntoReference(props.target.referenceId, samples, sampleRate);
+  }
+}
+
+function onRecordError(error: Error): void {
+  store.recordingTarget = null;
+  emit('status', `Recording failed: ${error.message}`, 3000);
+}
+
+/**
+ * Opens a MediaStream for the store's currently-selected input device and hands it to
+ * this instance's <Waver> via the `inputStream` prop, so its Record button (and any
+ * explicit `startRecording()` call) uses the picked device instead of the default mic.
+ * Re-opened whenever the picker selection changes — not lazily on Record press — since
+ * `inputStream` must already be set before the user presses Record for that press to use
+ * it. Empty `selectedInputDeviceId` ("System default") intentionally leaves `inputStream`
+ * null so waver falls back to its own getUserMedia() default-device request.
+ */
+const inputStream = ref<MediaStream | null>(null);
+
+/**
+ * Guards against two races around the `await openInputStream(...)` below, both of which
+ * would otherwise leak a live MediaStream (mic stays "on" in the browser's own recording
+ * indicator with nothing left referencing it to ever stop it):
+ *  1. Two device switches in quick succession — the first call's `getUserMedia()` can
+ *     still resolve after the second call has already started (or already finished and
+ *     assigned `inputStream.value`), and would otherwise stomp the newer stream in place
+ *     without ever stopping its own now-abandoned one.
+ *  2. Unmount while a call is still in flight — the existing `onUnmounted` below only
+ *     stops whatever `inputStream.value` already holds at that moment; it can't stop a
+ *     stream that resolves *after* unmount, because nothing assigns it there yet.
+ * Each call captures the generation counter's value at its own start; if the counter has
+ * moved on by the time its `getUserMedia()` resolves, this call is stale — its stream (if
+ * it got one) is stopped immediately instead of stored, and `inputStream.value` is left
+ * untouched (whatever the newer call already put there, or unmount already cleared).
+ */
+let inputStreamGeneration = 0;
+
+async function refreshInputStream(): Promise<void> {
+  const generation = ++inputStreamGeneration;
+
+  inputStream.value?.getTracks().forEach((t) => t.stop());
+  inputStream.value = null;
+  if (!store.selectedInputDeviceId) return; // "system default" — let waver fall back to getUserMedia itself
+
+  let stream: MediaStream | null = null;
+  try {
+    stream = await openInputStream(store.selectedInputDeviceId);
+  } catch {
+    stream = null;
+  }
+
+  if (generation !== inputStreamGeneration) {
+    // A newer call (or unmount, which also bumps the generation) started while this one
+    // was awaiting getUserMedia() — this stream is stale, discard without storing it.
+    stream?.getTracks().forEach((t) => t.stop());
+    return;
+  }
+  inputStream.value = stream;
+}
+
+watch(() => store.selectedInputDeviceId, refreshInputStream, { immediate: true });
+
+onUnmounted(() => {
+  inputStreamGeneration++; // invalidate any in-flight refreshInputStream() call
+  inputStream.value?.getTracks().forEach((t) => t.stop());
+});
+
 /** Same seam useWaveformSlot uses internally — resolve buffer/rate/selection for
  * whichever target this instance is showing. */
 function resolveTarget() {
@@ -140,6 +328,17 @@ function resolveTarget() {
     selection: reference?.selection ?? null,
   };
 }
+
+/** Drives the Load trigger below the waveform host — same "is there audio for this
+ * target" question AudioSlot/ReferenceSlot's own `hasAudio`/`hasAnyReference` asked
+ * before this task, asked here instead now that the button lives inside this component. */
+const hasAudio = computed(() => resolveTarget().buffer.length > 0);
+
+/** Hides the Load trigger while this instance is the one actively recording — mostly
+ * to avoid showing two calls to action (Stop, on waver's own recording bar, and Load)
+ * at once; it's in normal flow below the host so it was never able to overlap waver's
+ * recording bar the way the button itself could before it moved out of the host. */
+const isRecordingThis = computed(() => sameTarget(props.target, store.recordingTarget));
 
 const durationLabel = computed(() => {
   const { buffer, sampleRate } = resolveTarget();
@@ -187,6 +386,34 @@ $icon-btn-size: 28px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   overflow: hidden;
+}
+
+/* Lives in normal document flow below .waveform-host, not absolutely positioned inside
+   it — see the template comment above for why. Because this is a fully separate box,
+   it structurally cannot overlap anything waver renders inside .waveform-host (its own
+   Record button, recording bar, etc.) regardless of waver's internal ruler/minimap
+   proportions or `:height` — there is no shared coordinate space to keep in sync. */
+.load-trigger {
+  display: flex;
+  justify-content: center;
+  padding: 6px 0;
+}
+
+.load-trigger-btn {
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+  border: none;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all $transition-fast;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  &:hover { filter: brightness(1.1); }
 }
 
 .waveform-footer {

@@ -1,54 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { useAnalysisStore } from '../../../src/stores/analysisStore';
 import { setActivePinia, createPinia } from 'pinia';
 import { toneFile } from '../../fixtures';
-
-/**
- * Empty reference tabs (created via "+", filled in later by a file or a recording) and
- * recording generalized to target any reference tab, not just A. See the multi-reference
- * plan (`let-s-plan-a-complex-cached-turtle.md`) for the base feature; this extends it
- * per later user direction.
- *
- * `AudioRecorder` is mocked here rather than exercised for real — it drives getUserMedia,
- * which node has no equivalent of. `start` is a no-op; `stop` hands back a synthetic
- * signal long enough to clear `MIN_ANALYSIS_SECONDS` (`analysisStore.references.test.ts`
- * uses real fixtures for the file-load paths since those don't touch the recorder at all).
- */
-let recorderCallCount = 0;
-vi.mock('../../../src/services/audio/recorder', () => {
-  class FakeAudioRecorder {
-    async start(): Promise<void> {}
-    async stop(): Promise<Float32Array> {
-      recorderCallCount++;
-      const n = 88200; // 2s @ 44100Hz — comfortably past the 1s analysis floor
-      const data = new Float32Array(n);
-      // A distinct frequency per call, so two takes are never accidentally equal.
-      const freq = 200 + recorderCallCount * 37;
-      for (let i = 0; i < n; i++) data[i] = Math.sin((i / 44100) * 2 * Math.PI * freq) * 0.5;
-      return data;
-    }
-    getState() {
-      return {
-        isRecording: false,
-        isArmed: false,
-        isPaused: false,
-        recordedDuration: 0,
-        level: 0,
-        inputChannels: 1,
-        channelIndex: 0,
-      };
-    }
-  }
-  return { AudioRecorder: FakeAudioRecorder };
-});
-
-const RECORDER_CONFIG = {
-  sampleRate: 44100 as const,
-  maxDuration: 20000,
-  channelCount: 1 as const,
-  channelIndex: 0,
-  autoThreshold: -40,
-};
 
 describe('analysisStore empty references and reference recording', () => {
   beforeEach(() => {
@@ -150,20 +103,31 @@ describe('analysisStore empty references and reference recording', () => {
     });
   });
 
-  describe('recording into a reference tab', () => {
-    it('tracks recordingTarget while recording and clears it after stop, same as A', async () => {
+  describe('finishing a recording into A or a reference tab', () => {
+    function fakeTake(freqOffset = 0): Float32Array {
+      const n = 88200; // 2s @ 44100Hz — comfortably past the 1s analysis floor
+      const data = new Float32Array(n);
+      const freq = 200 + freqOffset;
+      for (let i = 0; i < n; i++) data[i] = Math.sin((i / 44100) * 2 * Math.PI * freq) * 0.5;
+      return data;
+    }
+
+    it('finishRecordingIntoA saves the take and recomputes A\'s spectrum', async () => {
       const store = useAnalysisStore();
-      expect(store.recordingTarget).toBeNull();
+      await store.finishRecordingIntoA(fakeTake(), 44100);
 
-      await store.recordAudio(RECORDER_CONFIG);
-      expect(store.recordingTarget).toBe('A');
-
-      await store.stopRecording();
-      expect(store.recordingTarget).toBeNull();
       expect(store.audioBufferA.length).toBeGreaterThan(0);
+      expect(store.sourceNameA).toBe('Live take');
+      expect(store.spectrumA).not.toBeNull();
     });
 
-    it('creates a new asset for the reference and does not disturb A or a different reference', async () => {
+    it('finishRecordingIntoA respects the sample rate it is given', async () => {
+      const store = useAnalysisStore();
+      await store.finishRecordingIntoA(fakeTake(), 48000);
+      expect(store.sampleRateA).toBe(48000);
+    });
+
+    it('finishRecordingIntoReference creates a new asset and does not disturb A or a different reference', async () => {
       const store = useAnalysisStore();
       await store.loadFile(toneFile('harmonic-e2'));
       const aLengthBefore = store.audioBufferA.length;
@@ -173,13 +137,7 @@ describe('analysisStore empty references and reference recording', () => {
       const otherBufferBefore = store.audioAssets[otherAssetId]!.buffer;
 
       const emptyId = store.addEmptyReference();
-      expect(store.recordingTarget).toBeNull();
-
-      await store.recordAudio(RECORDER_CONFIG, { referenceId: emptyId });
-      expect(store.recordingTarget).toEqual({ referenceId: emptyId });
-
-      await store.stopRecording();
-      expect(store.recordingTarget).toBeNull();
+      await store.finishRecordingIntoReference(emptyId, fakeTake(37), 44100);
 
       const ref = store.references[emptyId]!;
       expect(ref.assetId).not.toBeNull();
@@ -189,10 +147,7 @@ describe('analysisStore empty references and reference recording', () => {
       expect(asset.buffer.length).toBeGreaterThan(0);
       expect(asset.sampleRate).toBe(44100);
 
-      // A untouched.
       expect(store.audioBufferA.length).toBe(aLengthBefore);
-      // The other reference's asset is a completely different object — recording into
-      // the empty tab must not have touched it, aliased it, or GC'd it.
       expect(store.references[otherId]!.assetId).toBe(otherAssetId);
       expect(store.audioAssets[otherAssetId]!.buffer).toBe(otherBufferBefore);
     });
@@ -200,12 +155,10 @@ describe('analysisStore empty references and reference recording', () => {
     it('disambiguates the "Live take" label across multiple recorded reference tabs', async () => {
       const store = useAnalysisStore();
       const id1 = store.addEmptyReference();
-      await store.recordAudio(RECORDER_CONFIG, { referenceId: id1 });
-      await store.stopRecording();
+      await store.finishRecordingIntoReference(id1, fakeTake(1), 44100);
 
       const id2 = store.addEmptyReference();
-      await store.recordAudio(RECORDER_CONFIG, { referenceId: id2 });
-      await store.stopRecording();
+      await store.finishRecordingIntoReference(id2, fakeTake(2), 44100);
 
       expect(store.references[id1]!.label).not.toBe(store.references[id2]!.label);
     });
@@ -216,8 +169,7 @@ describe('analysisStore empty references and reference recording', () => {
       const emptyId = store.addEmptyReference();
       expect(store.activeReferenceId).toBe(emptyId);
 
-      await store.recordAudio(RECORDER_CONFIG, { referenceId: emptyId });
-      await store.stopRecording();
+      await store.finishRecordingIntoReference(emptyId, fakeTake(), 44100);
 
       expect(store.references[emptyId]!.ir).not.toBeNull();
       expect(store.references[emptyId]!.stale).toBe(false);
@@ -226,12 +178,9 @@ describe('analysisStore empty references and reference recording', () => {
     it('drops the take cleanly if the target reference was removed mid-recording', async () => {
       const store = useAnalysisStore();
       const emptyId = store.addEmptyReference();
-
-      await store.recordAudio(RECORDER_CONFIG, { referenceId: emptyId });
       store.removeReference(emptyId);
 
-      await expect(store.stopRecording()).resolves.not.toThrow();
-      expect(store.recordingTarget).toBeNull();
+      await expect(store.finishRecordingIntoReference(emptyId, fakeTake(), 44100)).resolves.not.toThrow();
       expect(store.references[emptyId]).toBeUndefined();
     });
   });

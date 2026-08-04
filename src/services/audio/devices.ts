@@ -59,6 +59,24 @@ export async function probeChannelCount(deviceId?: string): Promise<number> {
   }
 }
 
+/**
+ * Opens a MediaStream for a specific input device, with the same anti-processing
+ * constraints the old recorder used (voice-call DSP mangles a take): AEC/AGC/noise
+ * suppression off, voice isolation off where supported.
+ */
+export async function openInputStream(deviceId?: string): Promise<MediaStream> {
+  return navigator.mediaDevices.getUserMedia({
+    audio: {
+      ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+      sampleRate: { ideal: 48000 },
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      voiceIsolation: { ideal: false },
+    } as MediaTrackConstraints,
+  });
+}
+
 export async function requestPermission(): Promise<boolean> {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });

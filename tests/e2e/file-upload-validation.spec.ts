@@ -23,8 +23,11 @@ test.describe('file upload validation', () => {
     });
 
     await expect(page.locator('.status-message').first()).toContainText('Invalid file type');
-    // no filename should have been accepted
-    await expect(page.locator('.source-name').first()).toHaveCount(0);
+    // no filename should have been accepted onto Wave 1 specifically — scoped to that
+    // slot's `.section` because the reference slot always has a `.source-name` now (its
+    // own tab auto-seeds empty, so ReferenceSlot's single-reference view renders one for
+    // the placeholder tab's "Empty reference" label, unrelated to this rejected file)
+    await expect(page.locator('.section').first().locator('.source-name')).toHaveCount(0);
   });
 
   test('rejects empty file with "File is empty"', async ({ page }) => {
@@ -79,7 +82,9 @@ test.describe('file upload validation', () => {
     await expect(page.locator('.source-name').first()).toContainText('sine-1k.wav');
 
     await page.locator('.cancel-btn').first().click();
-    await expect(page.locator('.source-name')).toHaveCount(0);
+    // Scoped to Wave 1's own .section — the reference slot's auto-seeded empty tab keeps
+    // its own `.source-name` ("Empty reference") up throughout, unrelated to A's file.
+    await expect(page.locator('.section').first().locator('.source-name')).toHaveCount(0);
     await expect(page.getByText('Load File').first()).toBeVisible();
   });
 });
