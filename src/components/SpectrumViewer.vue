@@ -46,7 +46,7 @@
           :legend="true"
           :cursor-readout="true"
           :border-radius="0"
-          :font-size="24"
+          :font-size="fontSizeScaled"
           @band-change="onBandChange"
           @visibility-change="onVisibilityChange"
         />
@@ -113,6 +113,11 @@ const { curves, minFreq, maxFreq, minValue, maxValue, onVisibilityChange, onBand
   liveMagnitudesDb,
   liveAverageDb
 );
+
+const fontSizeScaled = computed(() => {
+  const scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--font-scale')) || 1;
+  return Math.round(24 * scale);
+});
 
 onMounted(() => {
   logger.info('SpectrumViewer', 'Mounted');

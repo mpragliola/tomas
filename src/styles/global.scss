@@ -3,11 +3,25 @@
 @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
 
+/* Base font-size: 16px on desktop/tablet, scales down slightly on small tablets */
+html {
+  font-size: 16px;
+}
+
+@media (max-width: 768px) {
+  html {
+    font-size: 15px;
+  }
+}
+
 /* Design System: Color Tokens */
 :root {
   /* Native widgets (select popup, scrollbars, date pickers) are painted by the UA —
      color-scheme is the only way to make them follow the theme */
   color-scheme: light;
+
+  /* Dev-only zoom multiplier: change this single value to scale all proportions */
+  --font-scale: 1;
 
   --color-bg: #F8F8F8;
   --color-text-primary: #2C2C2C;
@@ -26,30 +40,30 @@
   --font-display: "Google Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-body: "Google Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
-  --radius-xs: 6px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 20px;
+  --radius-xs: calc(6px * var(--font-scale));
+  --radius-sm: calc(8px * var(--font-scale));
+  --radius-md: calc(12px * var(--font-scale));
+  --radius-lg: calc(20px * var(--font-scale));
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
 
   /* Spacing scale — gap/padding/margin values that repeat across components */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
+  --space-1: calc(4px * var(--font-scale));
+  --space-2: calc(8px * var(--font-scale));
+  --space-3: calc(12px * var(--font-scale));
+  --space-4: calc(16px * var(--font-scale));
+  --space-5: calc(20px * var(--font-scale));
 
-  /* Type scale */
-  --font-size-micro: 13px;
-  --font-size-label: 14px;
-  --font-size-sm: 15px;
-  --font-size-base: 16px;
-  --font-size-md: 18px;
-  --font-size-lg: 20px;
-  --font-size-xl: 24px;
-  --font-size-xxl: 32px;
+  /* Type scale in rem (all scale with --font-scale) */
+  --font-size-micro: calc(0.8125rem * var(--font-scale));
+  --font-size-label: calc(0.875rem * var(--font-scale));
+  --font-size-sm: calc(0.9375rem * var(--font-scale));
+  --font-size-base: calc(1rem * var(--font-scale));
+  --font-size-md: calc(1.125rem * var(--font-scale));
+  --font-size-lg: calc(1.25rem * var(--font-scale));
+  --font-size-xl: calc(1.5rem * var(--font-scale));
+  --font-size-xxl: calc(2rem * var(--font-scale));
 
   --letter-spacing-caps: 0.5px;
 }
@@ -164,14 +178,14 @@
   --font-display: "Press Start 2P", "VT323", monospace;
   --font-body: "VT323", "Press Start 2P", monospace;
 
-  --font-size-micro: 15px;
-  --font-size-label: 16px;
-  --font-size-sm: 17px;
-  --font-size-base: 18px;
-  --font-size-md: 20px;
-  --font-size-lg: 22px;
-  --font-size-xl: 26px;
-  --font-size-xxl: 36px;
+  --font-size-micro: calc(0.9375rem * var(--font-scale));
+  --font-size-label: calc(1rem * var(--font-scale));
+  --font-size-sm: calc(1.0625rem * var(--font-scale));
+  --font-size-base: calc(1.125rem * var(--font-scale));
+  --font-size-md: calc(1.25rem * var(--font-scale));
+  --font-size-lg: calc(1.375rem * var(--font-scale));
+  --font-size-xl: calc(1.625rem * var(--font-scale));
+  --font-size-xxl: calc(2.25rem * var(--font-scale));
 
   --radius-xs: 0px;
   --radius-sm: 0px;
@@ -184,7 +198,7 @@
 
 /* Retro CRT/phosphor effects — scoped so no other theme pays for them */
 :root[data-theme="retro"] body {
-  font-size: 18px;
+  font-size: calc(1.125rem * var(--font-scale));
   text-shadow: 0 0 2px currentColor, 0 0 8px rgba(51, 255, 51, 0.5);
   position: relative;
 }
@@ -420,7 +434,7 @@ body {
   font-family: var(--font-body);
   background-color: var(--color-bg);
   color: var(--color-text-primary);
-  font-size: 16px;
+  font-size: var(--font-size-base);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

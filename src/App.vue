@@ -185,7 +185,7 @@ function onIRDerived(e: any): void {
   background-color: var(--color-bg);
   color: var(--color-text-primary);
   font-family: var(--font-body);
-  font-size: 16px;
+  font-size: var(--font-size-base);
 }
 
 .app-header {
@@ -211,14 +211,14 @@ function onIRDerived(e: any): void {
 }
 
 .app-title {
-  font-size: 18px;
+  font-size: var(--font-size-md);
   font-weight: 600;
   color: var(--color-text-primary);
   white-space: nowrap;
 }
 
 .app-title-by {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: 300;
   opacity: 0.6;
 }
