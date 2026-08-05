@@ -272,7 +272,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
       duration: audioHeaderA.value.duration * 1000,
     };
 
-    logger.info('analysisStore', 'Recording saved', {
+    logger.debug('analysisStore', 'Recording saved', {
       samples: audioData.length,
       sampleRate,
     });
@@ -311,7 +311,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     ref.label = label;
     ref.stale = true;
 
-    logger.info('analysisStore', 'Recording saved into reference', {
+    logger.debug('analysisStore', 'Recording saved into reference', {
       referenceId,
       assetId,
       samples: audioData.length,
@@ -359,7 +359,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
       duration: audioHeaderA.value.duration * 1000,
     };
 
-    logger.info('analysisStore', 'File A loaded via waver Load button', {
+    logger.debug('analysisStore', 'File A loaded via waver Load button', {
       samples: samples.length,
       sampleRate,
       channels: channelBuffer.length,
@@ -394,7 +394,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     ref.label = label;
     ref.stale = true;
 
-    logger.info('analysisStore', 'File loaded into reference via waver Load button', {
+    logger.debug('analysisStore', 'File loaded into reference via waver Load button', {
       referenceId,
       assetId,
       samples: samples.length,
@@ -441,7 +441,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     contextIR = null;
     trimCache = null;
 
-    logger.info('analysisStore', 'File cleared: A', { irDiscarded: true });
+    logger.debug('analysisStore', 'File cleared: A', { irDiscarded: true });
   }
 
   /**
