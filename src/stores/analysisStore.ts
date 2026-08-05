@@ -292,7 +292,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
   async function finishRecordingIntoReference(referenceId: string, audioData: Float32Array, sampleRate: number): Promise<void> {
     const ref = references.value[referenceId];
     if (!ref) {
-      logger.warn('analysisStore', 'Recording target reference no longer exists, discarding take', {
+      logger.debug('analysisStore', 'Recording target reference no longer exists, discarding take', {
         referenceId,
       });
       return;
@@ -674,7 +674,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
         activeReferenceId.value = id;
       })
       .catch((error) => {
-        reportError('setActiveReference recompute failed', error, "Couldn't refresh that reference — try again.");
+        reportDebugError('setActiveReference recompute failed', error, "Couldn't refresh that reference — try again.");
         activeReferenceId.value = id;
       });
   }
