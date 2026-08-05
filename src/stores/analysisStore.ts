@@ -57,6 +57,10 @@ export const useAnalysisStore = defineStore('analysis', () => {
     logger.error('analysisStore', context, { error: String(error) });
     lastError.value = { id: ++errorIdCounter, message: userMessage };
   }
+  function reportDebugError(context: string, error: unknown, userMessage: string): void {
+    logger.debug('analysisStore', context, { error: String(error) });
+    lastError.value = { id: ++errorIdCounter, message: userMessage };
+  }
 
   // --- Slot A: flat, ungrouped refs. There is only ever one working take, so a
   // Record<'A', T> wrapper around a single key bought nothing once B stopped being a
@@ -500,7 +504,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
    */
   function addEmptyReference(): string {
     if (referenceOrder.value.length >= MAX_REFERENCES) {
-      reportError(
+      reportDebugError(
         'addEmptyReference rejected',
         new Error('Max references reached'),
         `You can compare up to ${MAX_REFERENCES} references at once — remove one before adding another.`,
@@ -537,7 +541,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
       return '';
     }
     if (referenceOrder.value.length >= MAX_REFERENCES) {
-      reportError(
+      reportDebugError(
         'cloneReference rejected',
         new Error('Max references reached'),
         `You can compare up to ${MAX_REFERENCES} references at once — remove one before cloning another.`,
