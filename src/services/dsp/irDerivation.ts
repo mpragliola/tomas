@@ -377,7 +377,7 @@ function snrConfidence(
   const sorted = Array.from(smoothed).sort((a, b) => a - b);
   const upperQuartile = sorted[Math.floor(sorted.length * 0.75)];
   if (upperQuartile < config.minUsableSnrDb) {
-    logger.warn(
+    logger.debug(
       'irDerivation',
       `Noise-floor estimate unusable for ${label} — material too stationary, SNR gate disabled`,
       { upperQuartileSnrDb: upperQuartile.toFixed(1) },
