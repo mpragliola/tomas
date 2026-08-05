@@ -249,7 +249,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     isAutoComputing.value = true;
     try {
       await computeSpectrumA(fftConfig.value);
-      logger.info('analysisStore', 'Spectrum auto-computed for A');
+      logger.debug('analysisStore', 'Spectrum auto-computed for A');
     } catch (error) {
       reportError('Auto-compute failed for A', error, "Couldn't analyze the working wave — try loading the file again.");
     } finally {
@@ -461,7 +461,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
   }
 
   async function computeSpectrumA(config: FFTConfig): Promise<void> {
-    logger.info('analysisStore', 'Computing spectrum A', { fftSize: config.fftSize });
+    logger.debug('analysisStore', 'Computing spectrum A', { fftSize: config.fftSize });
 
     if (audioBufferA.value.length === 0) {
       throw new Error('Audio file A not loaded');
@@ -476,7 +476,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     try {
       const fftResult = computeAveragedFFT(signal, config, sampleRateA.value);
       spectrumA.value = extractSpectrum(fftResult);
-      logger.info('analysisStore', 'Spectrum A computed', {
+      logger.debug('analysisStore', 'Spectrum A computed', {
         bins: spectrumA.value.frequencies.length,
         sampleRate: sampleRateA.value,
       });
@@ -526,7 +526,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     referenceOrder.value.push(id);
     activeReferenceId.value = id;
 
-    logger.info('analysisStore', 'Empty reference added', { id, label });
+    logger.debug('analysisStore', 'Empty reference added', { id, label });
     return id;
   }
 
@@ -571,7 +571,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     const sourceIdx = referenceOrder.value.indexOf(id);
     referenceOrder.value.splice(sourceIdx + 1, 0, newId);
 
-    logger.info('analysisStore', 'Reference cloned', { sourceId: id, newId, assetId: source.assetId });
+    logger.debug('analysisStore', 'Reference cloned', { sourceId: id, newId, assetId: source.assetId });
     return newId;
   }
 
@@ -600,7 +600,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
       if (sibling) setActiveReference(sibling);
     }
 
-    logger.info('analysisStore', 'Reference removed', {
+    logger.debug('analysisStore', 'Reference removed', {
       id,
       assetGCed: !!assetId && !stillReferenced,
       newActive: activeReferenceId.value,
@@ -699,7 +699,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     const asset = ref.assetId ? audioAssets.value[ref.assetId] : undefined;
     if (!asset || asset.buffer.length === 0) throw new Error(`Reference ${id} has no audio loaded`);
 
-    logger.info('analysisStore', 'Computing reference spectrum', { id, fftSize: config.fftSize });
+    logger.debug('analysisStore', 'Computing reference spectrum', { id, fftSize: config.fftSize });
 
     const signal = selectedChannels(asset, ref.selection);
     assertLongEnough(ref.label, signal[0], config, asset.sampleRate);
@@ -707,7 +707,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     try {
       const fftResult = computeAveragedFFT(signal, config, asset.sampleRate);
       ref.spectrum = extractSpectrum(fftResult);
-      logger.info('analysisStore', `Spectrum computed for reference ${id}`, {
+      logger.debug('analysisStore', `Spectrum computed for reference ${id}`, {
         bins: ref.spectrum.frequencies.length,
         sampleRate: asset.sampleRate,
       });
@@ -740,7 +740,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
       ref.toneMatchConfig.taps!,
     );
 
-    logger.info('analysisStore', `Tone-match IR computed for reference ${id}`, {
+    logger.debug('analysisStore', `Tone-match IR computed for reference ${id}`, {
       taps: ref.ir.length,
       sampleRate: ref.ir.sampleRate,
     });
@@ -964,7 +964,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
       sampleRateA.value || 44100,
     );
 
-    logger.info('analysisStore', 'Headroom measured', {
+    logger.debug('analysisStore', 'Headroom measured', {
       wetPeak: measurement.peak.toFixed(3),
       trimDb: (20 * Math.log10(measurement.trim)).toFixed(2),
       boundedTrimDb: (20 * Math.log10(boundedTrim(response))).toFixed(2),
@@ -1006,7 +1006,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
       const stale = audioContext;
       audioContext = null;
       contextIR = null;
-      logger.info('analysisStore', 'Rebuilding audio context for a new rate', {
+      logger.debug('analysisStore', 'Rebuilding audio context for a new rate', {
         was: stale.sampleRate,
         now: rate,
       });
@@ -1051,7 +1051,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     }
 
     contextIR = { source: response, rate: context.sampleRate, rendered };
-    logger.info('analysisStore', 'IR re-rendered at the context rate', {
+    logger.debug('analysisStore', 'IR re-rendered at the context rate', {
       from: response.sampleRate,
       to: context.sampleRate,
     });
@@ -1122,7 +1122,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     const useIR = mode === 'processed';
     const irResponse = useIR ? currentIR() : null;
 
-    logger.info('analysisStore', 'Starting playback', {
+    logger.debug('analysisStore', 'Starting playback', {
       volume,
       mode,
       samples: resolved?.buffer.length ?? 0,
@@ -1231,7 +1231,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
       teardownAnalysers();
       playbackSource.value = null;
       playingReferenceId = null;
-      logger.info('analysisStore', 'Playback ended');
+      logger.debug('analysisStore', 'Playback ended');
     };
 
     liveSources.add(bufferSource);
@@ -1316,7 +1316,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     playbackState.value = 'idle';
 
     if (stopped > 0) {
-      logger.info('analysisStore', 'Playback stopped', { sources: stopped });
+      logger.debug('analysisStore', 'Playback stopped', { sources: stopped });
     }
   }
 

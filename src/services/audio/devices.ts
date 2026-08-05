@@ -17,7 +17,7 @@ export async function enumerateAudioDevices(): Promise<AudioDevice[]> {
         groupId: d.groupId,
       }));
 
-    logger.info('devices', 'Enumerated audio devices', { count: audioInputs.length });
+    logger.debug('devices', 'Enumerated audio devices', { count: audioInputs.length });
     return audioInputs;
   } catch (error) {
     logger.error('devices', 'Failed to enumerate audio devices', { error: String(error) });
@@ -48,7 +48,7 @@ export async function probeChannelCount(deviceId?: string): Promise<number> {
     context = new AudioContext();
     const channels = context.createMediaStreamSource(stream).channelCount;
 
-    logger.info('devices', 'Probed input channels', { deviceId: deviceId || 'default', channels });
+    logger.debug('devices', 'Probed input channels', { deviceId: deviceId || 'default', channels });
     return Math.max(1, channels);
   } catch (error) {
     logger.warn('devices', 'Channel probe failed, assuming mono', { error: String(error) });
@@ -81,7 +81,7 @@ export async function requestPermission(): Promise<boolean> {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     stream.getTracks().forEach((track) => track.stop());
-    logger.info('devices', 'Microphone permission granted');
+    logger.debug('devices', 'Microphone permission granted');
     return true;
   } catch (error) {
     logger.warn('devices', 'Microphone permission denied', { error: String(error) });

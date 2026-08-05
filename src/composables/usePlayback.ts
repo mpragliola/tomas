@@ -272,7 +272,7 @@ export function usePlayback() {
       };
 
       animationFrameId = requestAnimationFrame(updateProgress);
-      logger.info('usePlayback', 'Playback started', { volume, mode: activeMode.value, offset });
+      logger.debug('usePlayback', 'Playback started', { volume, mode: activeMode.value, offset });
     } catch (error) {
       logger.error('usePlayback', 'Playback failed', { error: String(error) });
       if (token !== startToken) return;
@@ -292,7 +292,7 @@ export function usePlayback() {
     }
 
     statusMessage.value = '';
-    logger.info('usePlayback', 'Playback stopped');
+    logger.debug('usePlayback', 'Playback stopped');
   }
 
   async function togglePlayback(volume: number): Promise<void> {

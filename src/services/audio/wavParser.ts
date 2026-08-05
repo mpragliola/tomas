@@ -70,7 +70,7 @@ export async function parseWavFile(file: File): Promise<AudioBuffer> {
   const channelData =
     channels > 1 ? deinterleave(audioData, numSamples, channels) : [audioData];
 
-  logger.info('wavParser', 'WAV file parsed', {
+  logger.debug('wavParser', 'WAV file parsed', {
     fileName: file.name,
     sampleRate,
     channels,

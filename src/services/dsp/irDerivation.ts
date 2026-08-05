@@ -110,7 +110,7 @@ export function deriveToneCurve(
   const freqs = working.frequencies;
   const nyquist = sampleRate / 2;
 
-  logger.info('irDerivation', 'Deriving tone-match curve', {
+  logger.debug('irDerivation', 'Deriving tone-match curve', {
     maxBoostDb,
     maxCutDb,
     smoothingOctave,
@@ -167,7 +167,7 @@ export function deriveToneCurve(
     if (curveDb[i] > maxGainDb) maxGainDb = curveDb[i];
   }
 
-  logger.info('irDerivation', 'Tone-match curve derived', {
+  logger.debug('irDerivation', 'Tone-match curve derived', {
     offsetDb: offsetDb.toFixed(2),
     maxGainDb: maxGainDb.toFixed(2),
     gainAt1kDb: interpolateAt(freqs, curveDb, binCount, 1000).toFixed(2),
@@ -212,7 +212,7 @@ export function renderToneMatchIR(
 
   const l1Norm = l1NormOf(coefficients);
 
-  logger.info('irDerivation', 'Tone-match IR rendered', {
+  logger.debug('irDerivation', 'Tone-match IR rendered', {
     taps: coefficients.length,
     sampleRate,
     maxGainDb: maxGainDb.toFixed(2),

@@ -217,7 +217,7 @@ export function useWaveformSlot(getTarget: () => WaveformTarget, waver: Ref<Wave
       syncCursor();
       restoreSelection();
 
-      logger.info('WaveformSlot', `Waveform ${currentLabel()} loaded`, {
+      logger.debug('WaveformSlot', `Waveform ${currentLabel()} loaded`, {
         samples: audioData.length,
         sampleRate: resolved.sampleRate,
         channels: resolved.channels.length || 1,

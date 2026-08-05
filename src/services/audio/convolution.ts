@@ -16,7 +16,7 @@ export interface PlaybackConfig {
 export function convolveAudio(config: PlaybackConfig): Float32Array {
   const { irCoefficients, audioData, normalize = false } = config;
 
-  logger.info('convolution', 'Convolving audio with IR', {
+  logger.debug('convolution', 'Convolving audio with IR', {
     audioLength: audioData.length,
     irLength: irCoefficients.length,
     normalize,
