@@ -5,8 +5,10 @@
       <TooltipIcon :text="tooltipText" />
     </div>
 
+    <!-- Always rendered (even empty) so its height is reserved before any file is loaded —
+         otherwise the waveform box below jumps down the moment this row first appears. -->
     <!-- Head shrinks and ellipsizes, tail never does — so the extension stays readable -->
-    <div v-if="sourceName" class="source-name" :title="sourceName">
+    <div class="source-name" :title="sourceName">
       <span class="source-name-head">{{ nameHead }}</span><span class="source-name-tail">{{ nameTail }}</span>
     </div>
 
@@ -75,8 +77,9 @@ function clearSlot(): void {
   &-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     gap: 8px;
+    min-height: calc(2 * var(--font-size-label) * 1.3);
     margin-bottom: 8px;
   }
 

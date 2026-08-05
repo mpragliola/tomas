@@ -157,8 +157,9 @@ function onAddEmpty(): void {
   &-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     gap: 8px;
+    min-height: calc(2 * var(--font-size-label) * 1.3);
     margin-bottom: 8px;
   }
 
