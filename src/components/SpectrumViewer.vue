@@ -46,6 +46,7 @@
           :legend="true"
           :cursor-readout="true"
           :border-radius="0"
+          :font-size="24"
           @band-change="onBandChange"
           @visibility-change="onVisibilityChange"
         />
